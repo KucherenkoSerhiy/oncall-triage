@@ -4,7 +4,7 @@ from google.adk.agents import Agent
 
 from .tools import check_known, get_logs, remember_issue
 
-MODEL = "gemini-flash-latest"
+MODEL = "gemini-3.5-flash-lite"
 
 researcher = Agent(
     name="researcher",
