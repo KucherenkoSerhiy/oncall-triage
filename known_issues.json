@@ -1,0 +1,8 @@
+{
+  "issues": [
+    {
+      "pattern": "connection pool exhausted",
+      "explanation": "Known scaling limit on the DB connection pool during peak traffic; auto-recovers within a few minutes and does not need paging."
+    }
+  ]
+}
