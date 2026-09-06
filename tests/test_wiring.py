@@ -130,3 +130,16 @@ def test_reporter_instruction_defines_both_formats():
     assert "format b" in instruction
     assert "known" in instruction
     assert "new" in instruction
+
+
+def test_store_save_is_atomic_and_leaves_no_temp_file(tmp_path):
+    from oncall_triage import store
+
+    path = tmp_path / "issues.json"
+    store.add_known("disk full", "log rotation misconfigured", path=path)
+    store.add_known("cache stampede", "expected during deploys", path=path)
+
+    assert not list(tmp_path.glob("*.tmp")), "temp file must be replaced, not left"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert [i["pattern"] for i in data["issues"]] == ["disk full", "cache stampede"]
+    assert store.find_known("ERROR: disk FULL on /var", path=path) is not None

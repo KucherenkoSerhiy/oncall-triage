@@ -23,10 +23,14 @@ def _load(path: Optional[Path] = None) -> dict:
 
 
 def _save(data: dict, path: Optional[Path] = None) -> None:
+    # Atomic replace: a crash mid-write must never leave a half-written
+    # store — the whole known-issues memory would be unreadable JSON.
     path = path or _store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+    os.replace(tmp, path)
 
 
 def find_known(error_text: str, path: Optional[Path] = None) -> Optional[dict]:
