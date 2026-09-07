@@ -1,0 +1,153 @@
+name: deploy
+
+# PR   -> terraform plan for every root, posted as a PR comment.
+# main -> plan again, wait for the `demo` environment approval, apply.
+# Auth is OIDC only: the AWS role and Azure federated identity come from
+# infra/bootstrap (applied once by a human). Nothing here holds a key.
+
+on:
+  pull_request:
+    paths: [infra/**, .github/workflows/deploy.yml]
+  push:
+    branches: [master, main]
+    paths: [infra/**, .github/workflows/deploy.yml]
+  workflow_dispatch:
+    inputs:
+      root:
+        description: which root module to apply
+        type: choice
+        options: [all, aws, azure]
+        default: all
+      worker_image_sha:
+        description: git SHA of the triage-worker image to deploy (rollback = a previous SHA)
+        type: string
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "0"
+  AWS_REGION: eu-central-1
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  plan:
+    name: plan - ${{ matrix.root }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [aws, azure]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+      - name: AWS credentials (OIDC) - also the state backend for both roots
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Azure login (OIDC)
+        if: matrix.root == 'azure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: terraform init
+        run: >
+          terraform -chdir=infra/${{ matrix.root }} init
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="region=${{ env.AWS_REGION }}"
+      - name: terraform plan
+        run: |
+          terraform -chdir=infra/${{ matrix.root }} plan -no-color -out=tfplan \
+            -var="notification_email=${{ secrets.BUDGET_EMAIL }}" \
+            -var="worker_image_sha=${{ inputs.worker_image_sha }}" \
+            | tee plan.txt
+      - name: Post plan on the PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('plan.txt', 'utf8').slice(-60000);
+            const marker = '<!-- tfplan:${{ matrix.root }} -->';
+            const body = marker + '\n### terraform plan - `infra/${{ matrix.root }}`\n\n<details><summary>show plan</summary>\n\n```\n' + plan + '\n```\n</details>';
+            const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: context.issue.number });
+            const existing = comments.find(c => c.body.startsWith(marker));
+            if (existing) await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+
+  apply:
+    name: apply - ${{ matrix.root }}
+    needs: plan
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: demo
+    strategy:
+      max-parallel: 1
+      matrix:
+        root: [aws, azure]
+    steps:
+      - name: Decide whether this root is selected
+        id: sel
+        run: |
+          want="${{ inputs.root }}"
+          if [ -z "$want" ] || [ "$want" = "all" ] || [ "$want" = "${{ matrix.root }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.sel.outputs.run == 'true'
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.sel.outputs.run == 'true'
+        with:
+          terraform_version: "1.10.5"
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.sel.outputs.run == 'true'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: azure/login@v2
+        if: steps.sel.outputs.run == 'true' && matrix.root == 'azure'
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: terraform apply
+        if: steps.sel.outputs.run == 'true'
+        run: |
+          terraform -chdir=infra/${{ matrix.root }} init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+          terraform -chdir=infra/${{ matrix.root }} apply -auto-approve \
+            -var="notification_email=${{ secrets.BUDGET_EMAIL }}" \
+            ${{ inputs.worker_image_sha && format('-var="worker_image_sha={0}"', inputs.worker_image_sha) || '' }}
+
+  smoke:
+    name: smoke probe
+    needs: apply
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe the deployed system
+        # scripts/smoke.py lands with the alert spine (M2); until then the
+        # step says so instead of reporting a green it did not earn.
+        run: |
+          if [ -f scripts/smoke.py ]; then python scripts/smoke.py; \
+          else echo "::notice::no smoke probe yet (arrives with M2)"; fi

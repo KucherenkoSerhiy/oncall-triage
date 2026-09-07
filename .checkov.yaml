@@ -1,0 +1,22 @@
+# checkov policy for infra/. Every skip carries its reason; a skip without
+# a reason is a review finding.
+directory:
+  - infra
+framework:
+  - terraform
+compact: true
+quiet: true
+skip-check:
+  # Terraform state bucket: single-region portfolio project; cross-region
+  # replication and event notifications are cost without benefit here.
+  - CKV_AWS_144   # S3 cross-region replication
+  - CKV2_AWS_62   # S3 event notifications
+  - CKV_AWS_18    # S3 access logging (needs a second bucket; the state bucket has no public path)
+  # Deploy-role IAM exceptions are inline on the policy document in
+  # infra/bootstrap/aws/main.tf, each with its reason, so they cannot
+  # silently apply to any other policy.
+  # Route 53 hardening deferred to milestone M9 (hardening): DNSSEC needs
+  # a KMS key (~$1/month) plus a DS record at the parent registrar; query
+  # logging needs a us-east-1 log group. Both are tracked in DESIGN.md.
+  - CKV2_AWS_38   # DNSSEC signing
+  - CKV2_AWS_39   # DNS query logging
