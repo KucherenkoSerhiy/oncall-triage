@@ -42,8 +42,28 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
+  # Until infra/bootstrap has been applied and its outputs stored as
+  # repository variables there is nothing to authenticate with; skip
+  # honestly instead of failing on a missing role.
+  preflight:
+    name: preflight - bootstrap variables present?
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        run: |
+          if [ -n "${{ vars.AWS_DEPLOY_ROLE_ARN }}" ] && [ -n "${{ vars.TF_STATE_BUCKET }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::deploy skipped - run infra/bootstrap and set AWS_DEPLOY_ROLE_ARN, TF_STATE_BUCKET, AZURE_* repository variables (see infra/README.md)"
+          fi
+
   plan:
     name: plan - ${{ matrix.root }}
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -94,7 +114,7 @@ jobs:
   apply:
     name: apply - ${{ matrix.root }}
     needs: plan
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     environment: demo
     strategy:
@@ -141,7 +161,7 @@ jobs:
   smoke:
     name: smoke probe
     needs: apply
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && needs.apply.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
