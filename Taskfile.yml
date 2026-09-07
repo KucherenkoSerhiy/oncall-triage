@@ -1,0 +1,76 @@
+# Task runner - https://taskfile.dev. Every command a contributor needs,
+# named the same way the CI jobs are.
+version: "3"
+
+vars:
+  TF_ROOTS: infra/bootstrap/aws infra/bootstrap/azure infra/aws infra/azure
+  C4_DIR: docs/c4
+
+tasks:
+  default:
+    cmds: [task --list]
+
+  install:
+    desc: Install Python dev dependencies and pre-commit hooks
+    cmds:
+      - pip install -r requirements-dev.txt
+      - pre-commit install
+
+  lint:
+    desc: Ruff lint + format check, mypy
+    cmds:
+      - ruff check .
+      - ruff format --check .
+      - mypy
+
+  fmt:
+    desc: Auto-format Python and Terraform
+    cmds:
+      - ruff check --fix .
+      - ruff format .
+      - terraform fmt -recursive infra
+
+  test:
+    desc: Lint + unit tests (what ci.yml runs for Python)
+    deps: [lint]
+    cmds:
+      - pytest
+
+  tf:validate:
+    desc: terraform fmt -check, init (no backend) and validate every root module
+    cmds:
+      - terraform fmt -check -recursive infra
+      - for: { var: TF_ROOTS }
+        cmd: terraform -chdir={{.ITEM}} init -backend=false -input=false >/dev/null && terraform -chdir={{.ITEM}} validate
+
+  tf:lint:
+    desc: tflint every root module
+    cmds:
+      - tflint --init
+      - for: { var: TF_ROOTS }
+        cmd: tflint --chdir={{.ITEM}}
+
+  tf:scan:
+    desc: checkov over infra/ (policy in .checkov.yaml)
+    cmds:
+      - checkov --config-file .checkov.yaml
+
+  c4:
+    desc: Export the Structurizr model to docs/c4/generated (Mermaid)
+    cmds:
+      - docker run --rm -v "{{.PWD}}/{{.C4_DIR}}:/usr/local/structurizr" structurizr/structurizr export -workspace /usr/local/structurizr/workspace.dsl -format mermaid -output /usr/local/structurizr/generated
+      - python scripts/c4_render.py
+    vars:
+      PWD:
+        sh: pwd
+
+  c4:check:
+    desc: Fail if docs/c4/generated is stale relative to workspace.dsl (what ci.yml enforces)
+    deps: [c4]
+    cmds:
+      - git diff --exit-code -- {{.C4_DIR}}/generated
+
+  agent:
+    desc: Run the ADK dev UI for the triage agent (phase-1 experience)
+    cmds:
+      - adk web

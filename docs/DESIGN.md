@@ -1,8 +1,7 @@
 # Nordwind Bank — cloud alert triage: design
 
-Status: **approved direction, v2** (2026-09-07). Nothing built yet.
-Decisions taken with the owner are ✅; the remaining open ones are in
-§12.
+Status: **approved, v2.1** (2026-09-07) — building. All decisions are
+taken (§2); nothing is open (§12).
 
 ## 0. The 20% — if you read nothing else
 
@@ -76,6 +75,11 @@ the deployed resources. Cloud spend target **≤ $10 / month**, modelled at
 | D6 | Kubernetes + Kafka | **Included** — a Prometheus/Alertmanager-monitored estate with Strimzi Kafka as event backbone and alert transport | "Used everywhere"; a triage system that never saw an Alertmanager webhook or a consumer-lag alert isn't credible in a bank |
 | D7 | Where Kubernetes runs | **kind**: laptop for development, **GitHub Actions** for the repeatable demo; AKS kept as a documented v2 option (same charts) | Kubernetes is free; the VM under a cloud cluster is what costs money. Trade: AWS cannot reach the in-cluster Kafka, so the cross-cloud hop out of Kafka is a relay pod (route A) — see §4.4 |
 | D8 | Delivery | Trunk-based, PR-only, **plan on PR → approve → apply on merge**, OIDC to both clouds, images by git SHA | The pipeline is part of the product: it's how a bank would run this, and it's the part most job descriptions actually test |
+| D9 | Domain | **`triage.serhiykucherenko.dev`** (console) and **`api.triage.serhiykucherenko.dev`** (console API + webhooks): a Route 53 hosted zone for the `triage` subdomain, delegated once by NS records at the parent's DNS; ACM certificates via DNS validation | Portfolio project — a real hostname with a real certificate is part of the showcase; +$0.50/month |
+| D10 | Console auth | Bearer token entered once in the browser (v1); Cognito / Entra ID SSO is v2 | 20 lines, no new service, clear upgrade path |
+| D11 | Diagrams | **Structurizr DSL** is the source of truth from M1, exported by CI; the drift check lands in M8 | "IaC fashion" for diagrams — and diagrams exist before the first resource, not after the last |
+| D12 | Repo | Nightly `estate-demo.yml` on by default; repo goes **public at M2** | It's the regression suite and it's the portfolio |
+| D13 | Quality bar | This is a **showcase first**: every milestone ships with tests, docs, and updated diagrams, or it doesn't ship | A reviewer skimming the repo must find no "no tests" / "stale docs" red flag |
 
 ## 3. The bank (simulated)
 
@@ -471,9 +475,10 @@ line costs what it does.
 | Azure Storage account | GB + transactions | required companion of a Function app | ~0.20 |
 | Application Insights / Log Analytics | **per GB ingested** | < 0.3 GB (5 GB free; $2.30/GB beyond — Azure's classic surprise, so verbose logging stays off) | 0 |
 | Azure Monitor alert rules | per rule / time series | 2 metric rules (10 series free) | ~0.10 |
+| Route 53 hosted zone + ACM certificates | per zone-month; ACM public certs free | one zone for `triage.serhiykucherenko.dev` | 0.50 |
 | GitHub Actions | minutes | ≈ 650 of 2,000 free/month on a private repo (unlimited if public) | 0 |
 | Kubernetes (kind) | — | laptop and CI runner | 0 |
-| **Cloud total** | | worst case ≈ $4 with 15 extra custom metrics | **≈ 1–2** |
+| **Cloud total** | | worst case ≈ $4.50 with 15 extra custom metrics | **≈ 1.5–2.5** |
 | Anthropic API *(outside the $10)* | per MTok in / out | 300 alerts × 3 turns × (~3k in + ~700 out) at Haiku 4.5 $1 / $5 per MTok | ≈ 2.5 |
 
 Ruled out and why: EKS ($73/month control plane before a node), any
@@ -534,18 +539,10 @@ oncall-triage/
   .github/workflows/{ci,deploy,estate-demo,c4}.yml
 ```
 
-## 12. Open decisions (need your call)
+## 12. Open decisions
 
-| # | Question | Options | Recommendation |
-|---|---|---|---|
-| O1 | Console auth in v1 | bearer token in browser · Cognito hosted UI · none (private CloudFront + IP allowlist) | bearer token — 20 lines, no new service, clear upgrade path |
-| O2 | Structurizr DSL vs Mermaid-C4-only | DSL + CI export (Docker in CI, deployment views, drift check) · hand-maintained Mermaid C4 | Structurizr DSL — the drift check is the whole point of "IaC fashion" |
-| O3 | Chaos scheduling | on-demand only · plus the nightly `estate-demo.yml` run as a living demo | nightly run, on by default (it's free and it's your regression suite) |
-| O4 | Custom domain | none · Route 53 zone (+$0.50/month) | none for v1 |
-| O5 | Repo visibility | private (2,000 Actions minutes) · public (unlimited minutes, portfolio-visible) | public once M2 lands — it *is* the portfolio |
-
-*Resolved since v1:* O6 (how to afford Kubernetes + Kafka) → D7, kind
-on laptop + GitHub Actions; AKS is a v2 root module.
+None open. O1–O5 were resolved on 2026-09-07 into D9–D13 above; O6
+(how to afford Kubernetes + Kafka) into D7.
 
 ## 13. Milestones (each with an offline gate and a live probe)
 
@@ -560,7 +557,7 @@ on laptop + GitHub Actions; AKS is a v2 root module.
 | M6 | Kubernetes estate on kind: `nordwind-bank` chart (3 services), kube-prometheus-stack, PrometheusRules, Alertmanager route B → forwarder; `task estate-up`; chaos via ConfigMap; `estate-demo.yml` v1 | `helm lint` + `kubeconform`; chart installs on kind in CI; scenario assertions | `task estate-up` < 5 min; chaos cards-authorization timeouts → Prometheus → Alertmanager → forwarder → verdict |
 | M7 | Kafka backbone: Strimzi (KRaft) + topics + SCRAM users; producers/consumers across the three services; `alerts-bridge` + `kafka-relay` (route A); kafka-exporter + lag rules; scenarios for both routes | contract tests against `testcontainers` Redpanda; bridge + relay unit tests | chaos fraud-scoring lag → `KafkaConsumerLag` travels **over Kafka** → verdict; chaos broker-down → `KafkaBrokerDown` arrives via route B; `estate-demo.yml` green end to end |
 | M8 | C4 pipeline: `workspace.dsl` (incl. kind deployment view), `c4.yml`, `c4_drift.py` over Terraform tags **and** Helm labels; ADRs 0001–0008 | drift check green; a deliberately untagged resource fails it | — |
-| M9 | Hardening + operations: self-observability dashboard + 4 alarms + SLO, DLQ alarm, daily LLM cap, weekly known-issues export to S3, runbooks, rollback drill, README demo script | full suite | 24 h under the nightly demo stays < $0.50; rollback drill recorded |
+| M9 | Hardening + operations: self-observability dashboard + 4 alarms + SLO, DLQ alarm, daily LLM cap, weekly known-issues export to S3, Route 53 DNSSEC (KMS key + DS record at the parent) and query logging, runbooks, rollback drill, README demo script | full suite | 24 h under the nightly demo stays < $0.50; rollback drill recorded; `dig +dnssec` validates |
 
 Build method: M2–M7 code is written by **dev-loop** against tight specs
 (offline-verifiable parts); Terraform applies and live probes stay
@@ -577,7 +574,9 @@ click — exactly the "intervene only on real blockers" contract.
 4. A billing e-mail for the two budget alerts.
 5. Tooling install on this machine: Terraform, AWS CLI, Azure CLI, `gh`,
    `kind`, `kubectl`, `helm`, `task` (all free; Docker is already here).
-6. Your calls on O1–O5.
+6. **DNS delegation**: four NS records for `triage` added once at wherever
+   `serhiykucherenko.dev` is hosted (I'll hand you the exact records after
+   the zone exists; if it's Cloudflare, Terraform can do it too).
 
 ## 15. Risks
 

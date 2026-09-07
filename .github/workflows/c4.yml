@@ -1,0 +1,32 @@
+name: c4
+
+# Keeps docs/c4/generated in lock-step with docs/c4/workspace.dsl on the
+# default branch. PRs are checked (not auto-fixed) by ci.yml so a stale
+# diagram fails review instead of being silently rewritten.
+
+on:
+  push:
+    branches: [master, main]
+    paths: [docs/c4/workspace.dsl, .github/workflows/c4.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export Structurizr model to Mermaid
+        run: |
+          docker run --rm -v "$PWD/docs/c4:/usr/local/structurizr" structurizr/structurizr \
+            export -workspace /usr/local/structurizr/workspace.dsl -format mermaid -output /usr/local/structurizr/generated
+          python scripts/c4_render.py
+      - name: Commit regenerated diagrams
+        run: |
+          git config user.name "c4-bot"
+          git config user.email "c4-bot@users.noreply.github.com"
+          git add docs/c4/generated
+          git diff --cached --quiet && echo "diagrams already current" && exit 0
+          git commit -m "docs(c4): regenerate diagrams from workspace.dsl [skip ci]"
+          git push

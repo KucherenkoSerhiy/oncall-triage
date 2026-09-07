@@ -1,118 +1,111 @@
-# oncall-triage
+# oncall-triage — Nordwind Bank alert triage
 
-A three-role agent workflow, built on Google ADK, that triages service log
-errors: it recognizes previously-explained known issues, researches
-genuinely new ones, and reports with a verbosity matched to the case.
+[![ci](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/ci.yml/badge.svg)](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/ci.yml)
+[![deploy](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/deploy.yml/badge.svg)](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/deploy.yml)
+[![license](https://img.shields.io/badge/license-MIT-0f766e)](LICENSE)
 
-## Roles and flow
+An LLM-powered alert-triage service for a fictional bank, built the way a
+bank would have to build it: three-role agent workflow on Google ADK
+(Claude Haiku 4.5 underneath), one triage brain on AWS, three monitored
+estates feeding it — serverless on AWS, serverless on Azure, and a
+Kubernetes estate with Prometheus, Alertmanager and Kafka — all of it
+Terraform and Helm, deployed only by GitHub Actions over OIDC, with C4
+diagrams that CI keeps honest. Cloud budget: under $10 a month.
 
-- **triage** (root agent) — pulls logs for a service via `get_logs` and
-  checks each error against the known-issues store via `check_known`.
-  - Known match → hands off directly to **reporter**.
-  - New error → hands off to **researcher** first, then **reporter**.
-  - The routing is genuine ADK dynamic delegation (`sub_agents` +
-    description-driven transfer), not a fixed sequential pipeline — the
-    model decides which sub-agent to invoke based on what `check_known`
-    returned.
-- **researcher** (sub-agent) — given a new error's text, reasons out a
-  short characterization: likely cause category, severity guess, and a
-  suggested next diagnostic step. No external services, reasoning only.
-- **reporter** (sub-agent) — formats the final answer:
-  - Known issue → one terse line citing the stored explanation, no alarm.
-  - New issue → a fuller report: the error, the researcher's
-    characterization, and a recommendation to page or monitor.
+> **Status:** phase 1 (the agent) is done and live-verified; phase 2 (the
+> cloud system) is being built milestone by milestone — see the roadmap.
 
-You can also teach the system: a message like "the connection pool
-exhausted error in payments-service is expected, because it's a known
-scaling limit" causes triage to call `remember_issue` and persist it to
-the known-issues store.
+## What it does
 
-## Known-issues store
+An alert arrives — from a CloudWatch alarm, an Azure Monitor rule, a
+Prometheus rule travelling over Kafka, or the `bankops` chaos client. It is
+normalised to one canonical shape, scrubbed of card numbers and IBANs,
+de-duplicated, and queued. A triage agent pulls the alert's context and
+checks a persistent **known-issues memory**:
 
-A local JSON file, `known_issues.json` in the repo root by default
-(override with the `TRIAGE_STORE_PATH` env var). It ships pre-seeded with
-one known issue (`connection pool exhausted`) so the known-issue path is
-demonstrable immediately. A production deployment would swap this for
-Vertex AI Memory Bank; that's out of scope here.
+- **known** → the reporter answers in one terse line, no page;
+- **new** → a tool-less researcher characterises it (cause category,
+  severity, next diagnostic step) and the reporter writes the full report
+  with a page/monitor recommendation.
 
-## Sequence diagrams
+Engineers **teach** the system from the incident console ("this error in
+payments is expected because…") and the next occurrence short-circuits.
+The routing is genuine ADK dynamic delegation — the model chooses the
+hand-off from what the store returned, not a fixed pipeline.
 
-### Known-issue path
+## Architecture in one picture
 
-```mermaid
-sequenceDiagram
-    actor U as Oncall Engineer
-    participant T as triage
-    participant S as known_issues.json
-    participant R as reporter
-
-    U->>T: "check payments-service logs"
-    T->>T: get_logs("payments-service")
-    T->>S: check_known(error_text)
-    S-->>T: known=true, explanation
-    T->>R: hand off (error + stored explanation)
-    R-->>U: terse one-line report, no alarm
-```
-
-### New-issue path
+The C4 model lives in [`docs/c4/workspace.dsl`](docs/c4/workspace.dsl) and
+is exported to [`docs/c4/generated/`](docs/c4/generated/) by CI (context,
+containers, the Kubernetes estate, worker components, deployment). The
+full design — decisions, cost model, security posture, pipelines,
+milestones — is [`docs/DESIGN.md`](docs/DESIGN.md); each decision has an
+ADR in [`docs/adr/`](docs/adr/).
 
 ```mermaid
-sequenceDiagram
-    actor U as Oncall Engineer
-    participant T as triage
-    participant S as known_issues.json
-    participant Res as researcher
-    participant R as reporter
-
-    U->>T: "check inventory-service logs"
-    T->>T: get_logs("inventory-service")
-    T->>S: check_known(error_text)
-    S-->>T: known=false
-    T->>Res: hand off (new error text)
-    Res-->>T: characterization (cause, severity, next step)
-    T->>R: hand off (error + characterization)
-    R-->>U: full report + page/monitor recommendation
+flowchart LR
+  subgraph estates["three bank estates"]
+    A["AWS serverless<br/>payments · ledger · auth<br/>CloudWatch → SNS"]
+    Z["Azure serverless<br/>customer-notifications<br/>Azure Monitor → forwarder"]
+    K["Kubernetes (kind)<br/>cards · fraud · open-banking<br/>Prometheus → Kafka → relay"]
+  end
+  A & Z & K -->|"canonical alert, HMAC"| IN["ingest"]
+  IN --> Q["SQS"] --> W["triage worker<br/>ADK · Claude"] --> DB[("DynamoDB<br/>alerts · verdicts · known issues")]
+  DB --> UI["incident console<br/>triage.serhiykucherenko.dev"]
+  CLI["bankops CLI<br/>fire · chaos · teach"] -.-> A & Z & K & IN
 ```
 
-## Setup
+## Try the agent locally (phase 1)
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # then fill in GOOGLE_API_KEY
+cp .env.example oncall_triage/.env       # add your model API key
+adk web                                  # then: "check payments-service logs"
 ```
 
-## Run
+Details, prompts, the three sequence diagrams and a recorded demo
+transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.md),
+[`DEMO.md`](DEMO.md).
 
-From the repo root:
+## Roadmap
+
+| M | Milestone | Status |
+|---|---|---|
+| M0 | Repo, CI, design, ADRs, C4 model | ✅ |
+| M1 | Pipelines + bootstrap: Terraform roots, OIDC to both clouds, budgets, plan-on-PR / approve / apply | ✅ code · ⏳ first apply |
+| M2 | Alert spine without LLM: ingest → DynamoDB → SQS, console + API, `bankops fire`, custom domain | ⏳ |
+| M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | ⏳ |
+| M4 | AWS estate: three services + CloudWatch alarms + chaos | ⏳ |
+| M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ⏳ |
+| M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ⏳ |
+| M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | ⏳ |
+| M8 | C4 drift check against Terraform tags and Helm labels | ⏳ |
+| M9 | Hardening: self-observability + SLO, runbooks, rollback drill | ⏳ |
+
+Every milestone has an offline gate CI runs and a live probe recorded in
+its pull request — the definition of done is in the
+[PR template](.github/PULL_REQUEST_TEMPLATE.md).
+
+## Repository map
+
+```
+oncall_triage/     the ADK agents and tools (phase 1, live-verified)
+tests/             wiring + store tests (no API key needed)
+infra/             Terraform: bootstrap (once, by hand) and the CI-applied roots — see infra/README.md
+docs/              DESIGN.md · adr/ · c4/ (Structurizr DSL + generated Mermaid) · agent.md
+.github/           ci.yml · deploy.yml · c4.yml · PR template · dependabot
+Taskfile.yml       task test | lint | tf:validate | tf:lint | tf:scan | c4 | agent
+```
+
+## Working on it
 
 ```bash
-adk web
+task install      # dev dependencies + pre-commit hooks
+task test         # ruff, mypy, pytest — what ci.yml runs
+task tf:validate  # fmt, init (no backend), validate every Terraform root
+task c4           # regenerate diagrams from the model (Docker)
 ```
 
-or:
-
-```bash
-adk run oncall_triage
-```
-
-Then try prompts like:
-
-- "check payments-service logs" (known-issue path)
-- "check inventory-service logs" (new-issue path)
-- "the NullPointerException in RefundCalculator error in
-  payments-service is expected, because it's a known null-safety bug
-  with a fix scheduled" (teaches a new known issue)
-
-No API key is required to import the agent module or run the test suite —
-only actually talking to the model (via `adk web`/`adk run`) needs
-`GOOGLE_API_KEY`.
-
-## Tests
-
-```bash
-pytest
-```
-
-All tests are structural/wiring checks (agent wiring, tool behavior,
-store persistence, instruction content) — none of them make a live model
-call or require an API key.
+Conventions: trunk-based, pull requests only, squash-merge, conventional
+commits; a plan comment on every infrastructure PR; no cloud credential
+ever stored in GitHub. License: [MIT](LICENSE).

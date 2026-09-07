@@ -1,0 +1,31 @@
+[project]
+name = "oncall-triage"
+version = "0.2.0"
+description = "Nordwind Bank alert triage: a three-role Google ADK agent workflow fed by AWS, Azure and Kubernetes estates"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Serhiy Kucherenko" }]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "S", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]  # unicode dashes/arrows in strings are intentional
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # asserts are the point of tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["oncall_triage"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true

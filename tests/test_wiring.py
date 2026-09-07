@@ -1,7 +1,6 @@
 """Structural/wiring tests: no live model call, no API key required."""
 
 import json
-import os
 
 import pytest
 
@@ -67,14 +66,16 @@ def test_get_logs_covers_at_least_three_services():
     from oncall_triage.tools import _MOCK_LOGS
 
     assert len(_MOCK_LOGS) >= 3
-    for service, lines in _MOCK_LOGS.items():
+    for _service, lines in _MOCK_LOGS.items():
         assert len(lines) >= 1
 
 
 @pytest.fixture
 def temp_store(tmp_path, monkeypatch):
     store_path = tmp_path / "known_issues.json"
-    seed = {"issues": [{"pattern": "connection pool exhausted", "explanation": "Known scaling limit."}]}
+    seed = {
+        "issues": [{"pattern": "connection pool exhausted", "explanation": "Known scaling limit."}]
+    }
     store_path.write_text(json.dumps(seed), encoding="utf-8")
     monkeypatch.setenv("TRIAGE_STORE_PATH", str(store_path))
     return store_path
@@ -100,7 +101,9 @@ def test_check_known_miss(temp_store):
 def test_remember_issue_persists_and_is_found(temp_store):
     from oncall_triage.tools import check_known, remember_issue
 
-    result = remember_issue("NullPointerException in RefundCalculator", "Known null-safety bug, fix scheduled.")
+    result = remember_issue(
+        "NullPointerException in RefundCalculator", "Known null-safety bug, fix scheduled."
+    )
     assert result["stored"] is True
 
     found = check_known("ERROR NullPointerException in RefundCalculator.applyDiscount")

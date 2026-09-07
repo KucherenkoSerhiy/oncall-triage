@@ -1,0 +1,46 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Component View: Alert Triage - triage worker"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    3["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Haiku 4.5, reached<br />through ADK's LiteLLM<br />adapter.</div>"]
+    style 3 fill:#8fa1b0,stroke:#64707b,color:#ffffff
+
+    subgraph 5 ["Alert Triage"]
+      style 5 fill:#ffffff,stroke:#131921,color:#131921
+
+      subgraph 8 ["triage worker"]
+        style 8 fill:#ffffff,stroke:#0e8074,color:#0e8074
+
+        10["<div style='font-weight: bold'>researcher</div><div style='font-size: 70%; margin-top: 0px'>[Component: ADK Agent]</div><div style='font-size: 80%; margin-top:10px'>Characterises a genuinely new<br />error from its text alone:<br />cause category, severity,<br />next step. Deliberately<br />tool-less.</div>"]
+        style 10 fill:#99f6e4,stroke:#6bac9f,color:#0e1419
+        11["<div style='font-weight: bold'>reporter</div><div style='font-size: 70%; margin-top: 0px'>[Component: ADK Agent]</div><div style='font-size: 80%; margin-top:10px'>Produces the final text in<br />exactly one of two formats<br />plus a machine-readable<br />verdict block.</div>"]
+        style 11 fill:#99f6e4,stroke:#6bac9f,color:#0e1419
+        12["<div style='font-weight: bold'>tools</div><div style='font-size: 70%; margin-top: 0px'>[Component: Python functions]</div><div style='font-size: 80%; margin-top:10px'>get_alert, get_recent_alerts,<br />check_known, remember_issue</div>"]
+        style 12 fill:#99f6e4,stroke:#6bac9f,color:#0e1419
+        13["<div style='font-weight: bold'>KnownIssueStore</div><div style='font-size: 70%; margin-top: 0px'>[Component: Python interface + adapters]</div><div style='font-size: 80%; margin-top:10px'>JsonFileStore for tests and<br />local runs, DynamoStore in<br />the cloud.</div>"]
+        style 13 fill:#99f6e4,stroke:#6bac9f,color:#0e1419
+        14["<div style='font-weight: bold'>LiteLlm model adapter</div><div style='font-size: 70%; margin-top: 0px'>[Component: google.adk.models.lite_llm]</div><div style='font-size: 80%; margin-top:10px'>anthropic/claude-haiku-4-5</div>"]
+        style 14 fill:#99f6e4,stroke:#6bac9f,color:#0e1419
+        9["<div style='font-weight: bold'>triage agent</div><div style='font-size: 70%; margin-top: 0px'>[Component: ADK Agent]</div><div style='font-size: 80%; margin-top:10px'>Root agent: pulls alert<br />context, checks the<br />known-issues store, decides<br />the hand-off.</div>"]
+        style 9 fill:#99f6e4,stroke:#6bac9f,color:#0e1419
+      end
+
+      15[("<div style='font-weight: bold'>alerts, verdicts, known-issues</div><div style='font-size: 70%; margin-top: 0px'>[Container: DynamoDB (3 tables)]</div><div style='font-size: 80%; margin-top:10px'>Alert log, one verdict per<br />alert, taught known issues<br />per service.</div>")]
+      style 15 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+    end
+
+    9-. "<div>get_alert, get_recent_alerts,<br />check_known, remember_issue</div><div style='font-size: 70%'></div>" .->12
+    9-. "<div>transfer: new error</div><div style='font-size: 70%'></div>" .->10
+    9-. "<div>transfer: known or<br />characterised error</div><div style='font-size: 70%'></div>" .->11
+    10-. "<div>characterisation, via the<br />root agent</div><div style='font-size: 70%'></div>" .->11
+    12-. "<div>find_known / add_known</div><div style='font-size: 70%'></div>" .->13
+    13-. "<div>DynamoStore reads/writes</div><div style='font-size: 70%'></div>" .->15
+    12-. "<div>get_alert / get_recent_alerts</div><div style='font-size: 70%'></div>" .->15
+    9-. "<div>model turns</div><div style='font-size: 70%'></div>" .->14
+    10-. "<div>model turns</div><div style='font-size: 70%'></div>" .->14
+    11-. "<div>model turns</div><div style='font-size: 70%'></div>" .->14
+    14-. "<div>HTTPS</div><div style='font-size: 70%'></div>" .->3
+
+  end

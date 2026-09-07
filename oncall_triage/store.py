@@ -3,7 +3,6 @@
 import json
 import os
 from pathlib import Path
-from typing import Optional
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_STORE_PATH = _REPO_ROOT / "known_issues.json"
@@ -14,15 +13,15 @@ def _store_path() -> Path:
     return Path(configured) if configured else _DEFAULT_STORE_PATH
 
 
-def _load(path: Optional[Path] = None) -> dict:
+def _load(path: Path | None = None) -> dict:
     path = path or _store_path()
     if not path.exists():
         return {"issues": []}
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def _save(data: dict, path: Optional[Path] = None) -> None:
+def _save(data: dict, path: Path | None = None) -> None:
     # Atomic replace: a crash mid-write must never leave a half-written
     # store — the whole known-issues memory would be unreadable JSON.
     path = path or _store_path()
@@ -33,7 +32,7 @@ def _save(data: dict, path: Optional[Path] = None) -> None:
     os.replace(tmp, path)
 
 
-def find_known(error_text: str, path: Optional[Path] = None) -> Optional[dict]:
+def find_known(error_text: str, path: Path | None = None) -> dict | None:
     """Return the matching issue record if error_text contains a known pattern."""
     data = _load(path)
     error_lower = error_text.lower()
@@ -43,7 +42,7 @@ def find_known(error_text: str, path: Optional[Path] = None) -> Optional[dict]:
     return None
 
 
-def add_known(error_pattern: str, explanation: str, path: Optional[Path] = None) -> dict:
+def add_known(error_pattern: str, explanation: str, path: Path | None = None) -> dict:
     """Persist a new known-issue pattern and explanation."""
     data = _load(path)
     record = {"pattern": error_pattern, "explanation": explanation}

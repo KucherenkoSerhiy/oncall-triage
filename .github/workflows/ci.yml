@@ -1,0 +1,79 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: python - ruff, mypy, pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy
+      - run: pytest
+
+  terraform:
+    name: terraform - fmt, validate, tflint (${{ matrix.root }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [infra/bootstrap/aws, infra/bootstrap/azure, infra/aws, infra/azure]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+      - run: terraform fmt -check -recursive infra
+      - run: terraform -chdir=${{ matrix.root }} init -backend=false -input=false
+      - run: terraform -chdir=${{ matrix.root }} validate
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.53.0
+      - run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: tflint --chdir=${{ matrix.root }} --config=${{ github.workspace }}/.tflint.hcl
+
+  checkov:
+    name: checkov - infra policy scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bridgecrewio/checkov-action@v12
+        with:
+          config_file: .checkov.yaml
+          output_format: cli
+          soft_fail: false
+
+  c4:
+    name: c4 - model validates and generated diagrams are current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export Structurizr model to Mermaid
+        run: |
+          docker run --rm -v "$PWD/docs/c4:/usr/local/structurizr" structurizr/structurizr \
+            export -workspace /usr/local/structurizr/workspace.dsl -format mermaid -output /usr/local/structurizr/generated
+          python scripts/c4_render.py
+      - name: Generated diagrams must match the committed ones
+        run: |
+          git status --porcelain -- docs/c4/generated
+          git diff --exit-code -- docs/c4/generated \
+            || { echo "::error::docs/c4/generated is stale - run 'task c4' and commit"; exit 1; }
