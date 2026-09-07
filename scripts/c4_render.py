@@ -28,7 +28,7 @@ def main() -> None:
             continue
         body = mmd.read_text(encoding="utf-8").strip()
         parts += [f"## {TITLES[key]}", "", "```mermaid", body, "```", ""]
-    (GENERATED / "README.md").write_text("\n".join(parts), encoding="utf-8")
+    (GENERATED / "README.md").write_text("\n".join(parts), encoding="utf-8", newline="\n")
     print(f"rendered {GENERATED / 'README.md'}")
 
 
