@@ -289,7 +289,7 @@ sequenceDiagram
   end
   W->>DB: put verdict {known, severity, action, text, model, prompt_hash}
   UI->>DB: poll via console API every 10 s
-  UI-->>Op: verdict card; teach → POST known-issue
+  UI-->>Op: verdict card — teach via POST known-issue
 ```
 
 The synthetic path (`bankops fire --service fraud-scoring --alert model-drift`)
