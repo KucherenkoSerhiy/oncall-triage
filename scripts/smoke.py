@@ -49,6 +49,15 @@ def check_health(api_base: str) -> None:
         raise SmokeError("health", f"HTTP {status}: {body!r}")
 
 
+def probe_run_id() -> str:
+    """A label value unique to this probe run.
+
+    Ingest dedups on source|service|alert_name|labels for 30 minutes, so two
+    deploys inside that window would otherwise see the second smoke alert
+    silently absorbed - never queued, never a verdict (issue #38)."""
+    return os.environ.get("GITHUB_RUN_ID") or str(int(time.time()))
+
+
 def fire_alert(
     api_base: str,
     hmac_secret: str,
@@ -56,6 +65,7 @@ def fire_alert(
     alert_name: str = "SmokeTest",
     description: str = "deploy.yml smoke probe",
     sample_logs: list[str] | None = None,
+    run_id: str | None = None,
 ) -> str:
     payload = {
         "source": "bankops",
@@ -66,7 +76,7 @@ def fire_alert(
         "title": alert_name,
         "description": description,
         "sample_logs": sample_logs or [],
-        "labels": {},
+        "labels": {"probe_run": run_id or probe_run_id()},
         "fired_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
     }
     body = json.dumps({"source": "bankops", "payload": payload}).encode()
@@ -81,7 +91,14 @@ def fire_alert(
     status, response_body = http("POST", f"{api_base}/alerts", headers=headers, body=body)
     if status != 202:
         raise SmokeError("fire-alert", f"HTTP {status}: {response_body!r}")
-    return json.loads(response_body)["results"][0]["alert_id"]
+    result = json.loads(response_body)["results"][0]
+    if result.get("deduped"):
+        raise SmokeError(
+            "fire-alert",
+            f"ingest deduplicated {result['alert_id']} against an alert from the last 30 min; "
+            "the probe_run label should have made it unique",
+        )
+    return result["alert_id"]
 
 
 def teach_known_issue(
