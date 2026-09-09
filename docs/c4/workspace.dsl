@@ -183,7 +183,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                     infrastructureNode "triage-worker image" "Immutable image tagged by git SHA (also `:latest`); built and pushed by deploy.yml's `image` job, run by the Lambda above."
                 }
             }
-            deploymentNode "Azure" "northeurope" "Terraform: infra/azure" {
+            deploymentNode "Azure" "swedencentral" "Terraform: infra/azure" {
                 deploymentNode "Function App (consumption)" "" "Azure Functions" {
                     containerInstance azureEstate.notifications
                     containerInstance azureEstate.forwarder

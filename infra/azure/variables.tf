@@ -39,7 +39,7 @@ variable "ingest_hmac_secret" {
 }
 
 variable "location" {
-  description = "Region for every resource in this root. The resource group (bootstrap) lives in westeurope, but that region refuses new resources on this subscription (RequestDisallowedByAzure - 'not accepting new customers', 2026-09-09), so workloads go to northeurope; see ADR 0005."
+  description = "Region for every resource in this root. The bootstrap resource group lives in westeurope, which refuses new resources on this subscription; northeurope accepted resources but has a Consumption (Y1) VM quota of 0; swedencentral accepted a Y1 plan in a live probe (2026-09-10) and pairs with AWS eu-north-1 (Stockholm). See ADR 0005."
   type        = string
-  default     = "northeurope"
+  default     = "swedencentral"
 }

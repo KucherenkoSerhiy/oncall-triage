@@ -71,7 +71,7 @@ the deployed resources. Cloud spend target **≤ $10 / month**, modelled at
 | D2 | IaC | **Terraform** for cloud resources, **Helm** for in-cluster software | One language per layer, both industry defaults |
 | D3 | Delivery surface | **Incident console** static web page | Demo surface with zero moving parts; Slack / Teams / e-mail are v2 adapters |
 | D4 | Model | **Claude Haiku 4.5 via ADK's LiteLLM adapter** | Quality over free-tier 503 roulette; ≈ $2–3/month at demo volume, billed outside the $10 |
-| D5 | Regions | AWS **`eu-north-1` (Stockholm)**, Azure `northeurope` (Ireland; westeurope refuses new subscriptions - ADR 0005) | EU bank narrative (data residency); both carry every service we use. Stockholm rather than Frankfurt because the AWS account (new sign-up experience) ships with an AWS-managed *region floor* SCP that allows eu-north-1 + global services — we keep that guardrail instead of editing it (ADR 0005, 0014) |
+| D5 | Regions | AWS **`eu-north-1` (Stockholm)**, Azure `swedencentral` (Stockholm; westeurope refuses new subscriptions and northeurope has no Consumption quota - ADR 0005) | EU bank narrative (data residency); both carry every service we use. Stockholm rather than Frankfurt because the AWS account (new sign-up experience) ships with an AWS-managed *region floor* SCP that allows eu-north-1 + global services — we keep that guardrail instead of editing it (ADR 0005, 0014) |
 | D6 | Kubernetes + Kafka | **Included** — a Prometheus/Alertmanager-monitored estate with Strimzi Kafka as event backbone and alert transport | "Used everywhere"; a triage system that never saw an Alertmanager webhook or a consumer-lag alert isn't credible in a bank |
 | D7 | Where Kubernetes runs | **kind**: laptop for development, **GitHub Actions** for the repeatable demo; AKS kept as a documented v2 option (same charts) | Kubernetes is free; the VM under a cloud cluster is what costs money. Trade: AWS cannot reach the in-cluster Kafka, so the cross-cloud hop out of Kafka is a relay pod (route A) — see §4.4 |
 | D8 | Delivery | Trunk-based, PR-only, **plan on PR → approve → apply on merge**, OIDC to both clouds, images by git SHA | The pipeline is part of the product: it's how a bank would run this, and it's the part most job descriptions actually test |
@@ -149,7 +149,7 @@ C4Container
     Container(svc_aws, "payments · ledger · auth", "Lambdas + CloudWatch alarms", "Emit metrics; fault flag switches on failure modes")
     Container(sns, "alarm topic", "SNS", "CloudWatch alarm → ingest")
   }
-  Container_Boundary(az, "Azure northeurope — serverless estate") {
+  Container_Boundary(az, "Azure swedencentral — serverless estate") {
     Container(svc_az, "customer-notifications", "Azure Function", "Emits metrics to App Insights; fault flag")
     Container(monitor, "Azure Monitor", "metric alert rules + action group", "Fires on thresholds")
     Container(fwd, "alert forwarder", "Azure Function", "Receives Azure Monitor action-group calls and Alertmanager route-B webhooks, signs with HMAC, posts to ingest")
@@ -282,7 +282,7 @@ flowchart LR
     SVCA["payments · ledger · auth<br/>+ CloudWatch alarms → SNS"]
     BUD["AWS Budget $8 → e-mail"]
   end
-  subgraph AZ["Azure northeurope"]
+  subgraph AZ["Azure swedencentral"]
     FWD["alert forwarder Function<br/>customer-notifications Function<br/>Azure Monitor rules → action group"]
     BUDZ["Cost budget $2 → e-mail"]
   end
