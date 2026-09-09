@@ -41,6 +41,13 @@ def _build_parser() -> argparse.ArgumentParser:
     known = subparsers.add_parser("known", help="List known issues")
     known.add_argument("--service", default=None)
 
+    chaos = subparsers.add_parser("chaos", help="Inject, clear, or view a chaos fault")
+    chaos.add_argument("service", nargs="?", default=None, help="payments | ledger | auth")
+    chaos.add_argument("--mode", default=None)
+    chaos.add_argument("--minutes", type=int, default=5)
+    chaos.add_argument("--clear", action="store_true")
+    chaos.add_argument("--status", action="store_true")
+
     return parser
 
 
@@ -57,6 +64,7 @@ _HANDLERS = {
     "tail": commands.cmd_tail,
     "teach": commands.cmd_teach,
     "known": commands.cmd_known,
+    "chaos": commands.cmd_chaos,
 }
 
 

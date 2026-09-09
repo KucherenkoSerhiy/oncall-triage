@@ -18,6 +18,9 @@ Every route except `GET /health` and `OPTIONS` requires
 | GET | `/known-issues?service=` | bearer | Known issues, optionally filtered by service |
 | POST | `/known-issues` | bearer | Add a known issue |
 | DELETE | `/known-issues/{service}/{issue_id}` | bearer | Remove a known issue (`204`/`404`) |
+| GET | `/chaos` | bearer | List current bank-estate faults |
+| POST | `/chaos/{service}` | bearer | Set a fault (`404` unknown service, `400` invalid mode) |
+| DELETE | `/chaos/{service}` | bearer | Clear a fault (`404` unknown service) |
 
 ## `GET /health`
 
@@ -60,6 +63,32 @@ Request: `{"service": "payments-api", "pattern": "connection pool exhausted", "e
 404 {"error": "known issue not found"}
 ```
 
+## `GET /chaos`
+
+```
+200 [{"service": "payments", "mode": "errors", "until": 1234567890, "set_at": 1234567590, "set_by": "console", "active": true}]
+```
+
+## `POST /chaos/{service}`
+
+Request: `{"mode": "errors", "minutes": 5}`. `service` is one of `payments`,
+`ledger`, `auth`; valid modes: `payments` -> `errors`, `latency`, `pool`;
+`ledger` -> `lag`, `reconciliation-mismatch`; `auth` -> `jwks-rotation`,
+`lockouts`.
+
+```
+201 {"service": "payments", "mode": "errors", "until": 1234567890, "set_at": 1234567590, "set_by": "console"}
+400 {"error": "invalid mode 'bogus' for payments; valid modes: errors, latency, pool"}
+404 {"error": "unknown service: not-a-service"}
+```
+
+## `DELETE /chaos/{service}`
+
+```
+204 (no body)
+404 {"error": "unknown service: not-a-service"}
+```
+
 # `bankops` CLI
 
 `python -m cli.bankops [--api URL] [--hmac-secret S] [--token T] <command> ...`
@@ -71,3 +100,6 @@ Flags override `BANKOPS_API`, `BANKOPS_HMAC_SECRET`, `BANKOPS_TOKEN`.
 | `tail [--limit N] [--watch] [--interval 10]` | Print a table of recent alerts from `/alerts`; `--watch` repeats until Ctrl-C |
 | `teach --service S --pattern P --explanation E` | POST a known issue to `/known-issues` |
 | `known [--service S]` | List known issues from `/known-issues` |
+| `chaos SERVICE --mode M [--minutes 5]` | POST a fault to `/chaos/{service}`; validates the mode client-side |
+| `chaos SERVICE --clear` | DELETE the fault on `/chaos/{service}` |
+| `chaos --status` | Print a table of active faults from `/chaos` |

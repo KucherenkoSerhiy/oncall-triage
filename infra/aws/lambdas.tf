@@ -243,6 +243,7 @@ resource "aws_lambda_function" "console_api" {
       ALERTS_TABLE       = aws_dynamodb_table.alerts.name
       VERDICTS_TABLE     = aws_dynamodb_table.verdicts.name
       KNOWN_ISSUES_TABLE = aws_dynamodb_table.known_issues.name
+      BANK_FAULTS_TABLE  = aws_dynamodb_table.bank_faults.name
       CONSOLE_TOKEN      = data.aws_ssm_parameter.console_token.value
       CONSOLE_ORIGIN     = local.console_origin
     }

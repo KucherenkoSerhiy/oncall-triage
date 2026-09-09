@@ -47,6 +47,9 @@ locals {
     "GET /known-issues",
     "POST /known-issues",
     "DELETE /known-issues/{service}/{issue_id}",
+    "GET /chaos",
+    "POST /chaos/{service}",
+    "DELETE /chaos/{service}",
     "OPTIONS /{proxy+}",
   ]
 }

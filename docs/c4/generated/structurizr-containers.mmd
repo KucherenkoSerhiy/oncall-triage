@@ -12,10 +12,10 @@ graph LR
     style 4 fill:#5b6b7a,stroke:#3f4a55,color:#ffffff
     20["<div style='font-weight: bold'>Nordwind serverless estate (AWS)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Three bank services on Lambda<br />with CloudWatch alarms.</div>"]
     style 20 fill:#1c2530,stroke:#131921,color:#ffffff
-    25["<div style='font-weight: bold'>Nordwind serverless estate (Azure)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>One bank service on Azure<br />Functions, Azure Monitor<br />alerts, and the always-on<br />alert forwarder.</div>"]
-    style 25 fill:#1c2530,stroke:#131921,color:#ffffff
-    29["<div style='font-weight: bold'>Nordwind Kubernetes estate (kind)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Three bank services on<br />Kubernetes with Prometheus,<br />Alertmanager and a Strimzi<br />Kafka backbone. Runs in kind<br />on a laptop or a GitHub<br />Actions runner.</div>"]
-    style 29 fill:#1c2530,stroke:#131921,color:#ffffff
+    27["<div style='font-weight: bold'>Nordwind serverless estate (Azure)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>One bank service on Azure<br />Functions, Azure Monitor<br />alerts, and the always-on<br />alert forwarder.</div>"]
+    style 27 fill:#1c2530,stroke:#131921,color:#ffffff
+    31["<div style='font-weight: bold'>Nordwind Kubernetes estate (kind)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Three bank services on<br />Kubernetes with Prometheus,<br />Alertmanager and a Strimzi<br />Kafka backbone. Runs in kind<br />on a laptop or a GitHub<br />Actions runner.</div>"]
+    style 31 fill:#1c2530,stroke:#131921,color:#ffffff
 
     subgraph 5 ["Alert Triage"]
       style 5 fill:#ffffff,stroke:#131921,color:#131921
@@ -41,12 +41,13 @@ graph LR
     1-. "<div>reads verdicts, teaches known<br />issues</div><div style='font-size: 70%'>[HTTPS]</div>" .->17
     4-. "<div>fire: synthetic alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
     4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[Lambda invoke]</div>" .->20
-    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->25
-    4-. "<div>chaos: patch ConfigMap</div><div style='font-size: 70%'>[kubectl]</div>" .->29
+    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->27
+    4-. "<div>chaos: patch ConfigMap</div><div style='font-size: 70%'>[kubectl]</div>" .->31
     20-. "<div>notification</div><div style='font-size: 70%'>[SNS subscription]</div>" .->6
-    25-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
-    29-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
-    29-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->25
+    16-. "<div>GET/POST/DELETE chaos</div><div style='font-size: 70%'></div>" .->20
+    27-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
+    31-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
+    31-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->27
     6-. "<div>put alert</div><div style='font-size: 70%'></div>" .->15
     6-. "<div>enqueue alert id</div><div style='font-size: 70%'></div>" .->7
     7-. "<div>triggers</div><div style='font-size: 70%'></div>" .->8

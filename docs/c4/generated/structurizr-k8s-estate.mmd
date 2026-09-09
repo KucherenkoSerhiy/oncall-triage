@@ -8,43 +8,43 @@ graph LR
     style 4 fill:#5b6b7a,stroke:#3f4a55,color:#ffffff
     5["<div style='font-weight: bold'>Alert Triage</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Ingests alerts from every<br />estate, triages them with<br />Claude, remembers known<br />issues, publishes verdicts.</div>"]
     style 5 fill:#1c2530,stroke:#131921,color:#ffffff
-    25["<div style='font-weight: bold'>Nordwind serverless estate (Azure)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>One bank service on Azure<br />Functions, Azure Monitor<br />alerts, and the always-on<br />alert forwarder.</div>"]
-    style 25 fill:#1c2530,stroke:#131921,color:#ffffff
+    27["<div style='font-weight: bold'>Nordwind serverless estate (Azure)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>One bank service on Azure<br />Functions, Azure Monitor<br />alerts, and the always-on<br />alert forwarder.</div>"]
+    style 27 fill:#1c2530,stroke:#131921,color:#ffffff
 
-    subgraph 29 ["Nordwind Kubernetes estate (kind)"]
-      style 29 fill:#ffffff,stroke:#131921,color:#131921
+    subgraph 31 ["Nordwind Kubernetes estate (kind)"]
+      style 31 fill:#ffffff,stroke:#131921,color:#131921
 
-      30["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch;<br />produces card.authorized.<br />Chaos: timeouts, issuer-down.</div>"]
-      style 30 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      31["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes card.authorized,<br />produces fraud.scored. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
-      style 31 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      32["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway;<br />consumes fraud.scored. Chaos:<br />rate-limit-storm,<br />cert-expiry.</div>"]
+      32["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch;<br />produces card.authorized.<br />Chaos: timeouts, issuer-down.</div>"]
       style 32 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      33["<div style='font-weight: bold'>Kafka</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi (KRaft, 1 broker) + kafka-exporter]</div><div style='font-size: 80%; margin-top:10px'>Topics: card.authorized,<br />fraud.scored, alerts.raw.<br />SASL/SCRAM per client.</div>"]
+      33["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes card.authorized,<br />produces fraud.scored. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
       style 33 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      34["<div style='font-weight: bold'>Prometheus + Alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services and<br />kafka-exporter; alert rules;<br />Alertmanager routes A (Kafka)<br />and B (HTTPS).</div>"]
+      34["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway;<br />consumes fraud.scored. Chaos:<br />rate-limit-storm,<br />cert-expiry.</div>"]
       style 34 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      35["<div style='font-weight: bold'>alerts-bridge</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Alertmanager webhook receiver<br />that produces canonical<br />alerts to alerts.raw.</div>"]
+      35["<div style='font-weight: bold'>Kafka</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi (KRaft, 1 broker) + kafka-exporter]</div><div style='font-size: 80%; margin-top:10px'>Topics: card.authorized,<br />fraud.scored, alerts.raw.<br />SASL/SCRAM per client.</div>"]
       style 35 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      36["<div style='font-weight: bold'>kafka-relay</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes alerts.raw, signs<br />with HMAC, POSTs to ingest -<br />the hop out of Kafka.</div>"]
+      36["<div style='font-weight: bold'>Prometheus + Alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services and<br />kafka-exporter; alert rules;<br />Alertmanager routes A (Kafka)<br />and B (HTTPS).</div>"]
       style 36 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      37["<div style='font-weight: bold'>alerts-bridge</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Alertmanager webhook receiver<br />that produces canonical<br />alerts to alerts.raw.</div>"]
+      style 37 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      38["<div style='font-weight: bold'>kafka-relay</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes alerts.raw, signs<br />with HMAC, POSTs to ingest -<br />the hop out of Kafka.</div>"]
+      style 38 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
     4-. "<div>fire: synthetic alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->5
-    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->25
-    4-. "<div>chaos: patch ConfigMap</div><div style='font-size: 70%'>[kubectl]</div>" .->30
-    25-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->5
-    30-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->33
-    31-. "<div>consume card.authorized,<br />produce fraud.scored</div><div style='font-size: 70%'></div>" .->33
-    32-. "<div>consume fraud.scored</div><div style='font-size: 70%'></div>" .->33
-    34-. "<div>scrapes /metrics</div><div style='font-size: 70%'></div>" .->30
-    34-. "<div>scrapes /metrics</div><div style='font-size: 70%'></div>" .->31
-    34-. "<div>scrapes /metrics</div><div style='font-size: 70%'></div>" .->32
-    34-. "<div>scrapes kafka-exporter<br />(consumer lag)</div><div style='font-size: 70%'></div>" .->33
-    34-. "<div>route A: Alertmanager webhook</div><div style='font-size: 70%'></div>" .->35
-    35-. "<div>produce alerts.raw</div><div style='font-size: 70%'></div>" .->33
-    33-. "<div>consume alerts.raw</div><div style='font-size: 70%'></div>" .->36
-    36-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->5
-    34-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->25
+    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->27
+    4-. "<div>chaos: patch ConfigMap</div><div style='font-size: 70%'>[kubectl]</div>" .->32
+    27-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->5
+    32-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->35
+    33-. "<div>consume card.authorized,<br />produce fraud.scored</div><div style='font-size: 70%'></div>" .->35
+    34-. "<div>consume fraud.scored</div><div style='font-size: 70%'></div>" .->35
+    36-. "<div>scrapes /metrics</div><div style='font-size: 70%'></div>" .->32
+    36-. "<div>scrapes /metrics</div><div style='font-size: 70%'></div>" .->33
+    36-. "<div>scrapes /metrics</div><div style='font-size: 70%'></div>" .->34
+    36-. "<div>scrapes kafka-exporter<br />(consumer lag)</div><div style='font-size: 70%'></div>" .->35
+    36-. "<div>route A: Alertmanager webhook</div><div style='font-size: 70%'></div>" .->37
+    37-. "<div>produce alerts.raw</div><div style='font-size: 70%'></div>" .->35
+    35-. "<div>consume alerts.raw</div><div style='font-size: 70%'></div>" .->38
+    38-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->5
+    36-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->27
 
   end
