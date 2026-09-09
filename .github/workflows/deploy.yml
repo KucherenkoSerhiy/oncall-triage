@@ -26,6 +26,11 @@ on:
         description: set/rotate the Anthropic API key in SSM (leave blank to keep the current value)
         type: string
         required: false
+      chaos_probe:
+        description: after the smoke probe, drive one real alarm end to end (payments-pool = PoolExhausted -> known-issue verdict)
+        type: choice
+        options: [none, payments-pool, payments-errors, ledger-lag, auth-jwks]
+        default: none
 
 permissions:
   id-token: write
@@ -368,3 +373,18 @@ jobs:
             --query Parameter.Value --output text)
           export SMOKE_HMAC_SECRET SMOKE_TOKEN
           python scripts/smoke.py
+          echo "SMOKE_TOKEN=$SMOKE_TOKEN" >> "$GITHUB_ENV"
+      - name: Chaos probe - one real alarm end to end
+        # Manual-only (workflow_dispatch input): sets a fault through the
+        # console API, waits for the estate's own alarm to reach the spine
+        # and for a real-model verdict, then clears the fault. ~3-5 min on
+        # AWS. Mapping: <service>-<mode> -> the alarm signal it must produce.
+        if: github.event_name == 'workflow_dispatch' && inputs.chaos_probe != 'none' && inputs.chaos_probe != ''
+        run: |
+          case "${{ inputs.chaos_probe }}" in
+            payments-pool)   set -- --service payments --mode pool --expect-alert PoolExhausted --expect-known ;;
+            payments-errors) set -- --service payments --mode errors --expect-alert Errors ;;
+            ledger-lag)      set -- --service ledger --mode lag --expect-alert ApproximateAgeOfOldestMessage ;;
+            auth-jwks)       set -- --service auth --mode jwks-rotation --expect-alert AuthFailures ;;
+          esac
+          python scripts/chaos_probe.py "$@"
