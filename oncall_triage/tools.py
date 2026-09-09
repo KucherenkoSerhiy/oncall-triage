@@ -1,45 +1,61 @@
-"""Plain-Python tools used by the triage agent."""
+"""Plain-Python tools used by the triage agent, bound to swappable stores.
 
-from . import store
+``configure()`` swaps the module-level store instances at runtime: the
+deployed worker points them at DynamoDB (``services/triage_worker/handler.py``),
+while the default here - a local JSON file plus an in-memory alerts table -
+keeps ``adk web`` working without AWS.
+"""
 
-# Mock log store: at least 3 services, each mixing a known-class error
-# (matches known_issues.json) with a genuinely new-class error.
-_MOCK_LOGS = {
-    "payments-service": [
-        "ERROR 2026-09-01T10:00:00Z connection pool exhausted while processing checkout batch",
-        "ERROR 2026-09-01T10:04:12Z NullPointerException in RefundCalculator.applyDiscount",
-    ],
-    "auth-service": [
-        "ERROR 2026-09-01T09:55:03Z connection pool exhausted during token refresh burst",
-        "ERROR 2026-09-01T09:58:47Z JWT signature verification failed: unknown key id kid-77",
-    ],
-    "inventory-service": [
-        "ERROR 2026-09-01T08:30:11Z StockReconciliationTimeout waiting on warehouse-sync-3",
-        "ERROR 2026-09-01T08:41:02Z connection pool exhausted while syncing SKU deltas",
-    ],
-}
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+from .stores import AlertRepo, JsonFileStore, KnownIssueStore
+
+_known_store: KnownIssueStore = JsonFileStore()
+_alert_repo: AlertRepo = AlertRepo()
 
 
-def get_logs(service: str) -> list[str]:
-    """Fetch recent error log lines for a service.
-
-    Returns a friendly one-item list (never raises) if the service is unknown.
-    """
-    if service not in _MOCK_LOGS:
-        known = ", ".join(sorted(_MOCK_LOGS.keys()))
-        return [f"No logs found for service '{service}'. Known services: {known}."]
-    return list(_MOCK_LOGS[service])
+def configure(known_store: KnownIssueStore, alert_repo: AlertRepo) -> None:
+    """Point the tool functions at a different pair of stores."""
+    global _known_store, _alert_repo
+    _known_store = known_store
+    _alert_repo = alert_repo
 
 
-def check_known(error_text: str) -> dict:
+def get_alert(alert_id: str) -> dict:
+    """Fetch the canonical alert record by id (its stored fields, minus raw)."""
+    alert = _alert_repo.get_alert(alert_id)
+    if alert is None:
+        return {"alert_id": alert_id, "found": False}
+    return alert
+
+
+def get_recent_alerts(service: str, minutes: int = 30) -> list[dict]:
+    """List recent queued/triaged alerts for a service, most recent first."""
+    since = (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat().replace("+00:00", "Z")
+    items = _alert_repo.recent_alerts(service, since)
+    return [
+        {
+            "id": item["alert_id"],
+            "alert_name": item.get("alert_name"),
+            "severity": item.get("severity"),
+            "received_at": item.get("received_at"),
+            "status": item.get("status"),
+        }
+        for item in items
+    ]
+
+
+def check_known(service: str, error_text: str) -> dict:
     """Check whether error_text matches a previously-explained known issue."""
-    match = store.find_known(error_text)
+    match = _known_store.find_known(service, error_text)
     if match is None:
         return {"known": False, "pattern": None, "explanation": None}
     return {"known": True, "pattern": match["pattern"], "explanation": match["explanation"]}
 
 
-def remember_issue(error_pattern: str, explanation: str) -> dict:
-    """Persist a new known-issue pattern and its explanation to the store."""
-    record = store.add_known(error_pattern, explanation)
+def remember_issue(service: str, error_pattern: str, explanation: str) -> dict:
+    """Persist a new known-issue pattern and its explanation, scoped to service."""
+    record = _known_store.add_known(service, error_pattern, explanation, taught_by="triage-agent")
     return {"stored": True, "pattern": record["pattern"], "explanation": record["explanation"]}

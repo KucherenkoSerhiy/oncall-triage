@@ -2,9 +2,10 @@
 
 from google.adk.agents import Agent
 
-from .tools import check_known, get_logs, remember_issue
+from .model import build_model
+from .tools import check_known, get_alert, get_recent_alerts, remember_issue
 
-MODEL = "gemini-3.5-flash-lite"
+MODEL = build_model()
 
 researcher = Agent(
     name="researcher",
@@ -50,7 +51,16 @@ reporter = Agent(
         "closing recommendation of whether to page oncall now or monitor.\n\n"
         "Never mix the two formats. Use FORMAT A only when triage tells you "
         "the error matched the known-issues store; use FORMAT B only when "
-        "triage hands you a researcher characterization for a new error."
+        "triage hands you a researcher characterization for a new error.\n\n"
+        "Whichever format you use, always END your reply with a fenced "
+        "block, and nothing after it, exactly like:\n"
+        "```verdict\n"
+        '{"known": false, "severity": "sev2", "action": "page", "summary": "one line"}\n'
+        "```\n"
+        "where known mirrors what triage found (true for FORMAT A, false for "
+        "FORMAT B), severity is the alert's severity (sev1/sev2/sev3/sev4), "
+        'action is one of "page", "monitor", "ack", and summary is one short '
+        "line summarizing the verdict."
     ),
 )
 
@@ -58,17 +68,19 @@ triage = Agent(
     name="triage",
     model=MODEL,
     description=(
-        "Root oncall triage agent. Pulls service logs and checks each error "
+        "Root oncall triage agent. Pulls the alert and checks its error "
         "against the known-issues store, then routes to researcher or "
         "reporter."
     ),
     instruction=(
-        "You are the oncall triage agent. When asked to check a service's "
-        "logs:\n"
-        "1. Call get_logs(service) to fetch recent error lines.\n"
-        "2. For each error line, call check_known(error_text) against the "
-        "known-issues store.\n"
-        "3. Decide, per error:\n"
+        "You are the oncall triage agent. When asked to triage an alert:\n"
+        "1. Call get_alert(alert_id) to fetch its full details (service, "
+        "title, description, sample error lines).\n"
+        "2. You may call get_recent_alerts(service) to see whether this "
+        "service has been noisy recently, if that context would help.\n"
+        "3. Call check_known(service, error_text) against the known-issues "
+        "store for the alert's error text.\n"
+        "4. Decide:\n"
         "   - KNOWN match (check_known returns known=true): transfer "
         "directly to the reporter sub-agent with the error text and the "
         "stored explanation. Do NOT involve the researcher - the issue is "
@@ -78,15 +90,15 @@ triage = Agent(
         "category, severity guess, next diagnostic step), then pass the "
         "error plus that characterization to the reporter sub-agent to "
         "produce the final report.\n"
-        "4. If the user is teaching you about an error instead of asking "
+        "5. If the user is teaching you about an error instead of asking "
         "for a check - e.g. 'the X error in service Y is expected, because "
-        "Z' - call remember_issue(error_pattern, explanation) to store it, "
-        "and confirm briefly. Do not involve researcher or reporter for "
-        "this case.\n"
+        "Z' - call remember_issue(service, error_pattern, explanation) to "
+        "store it, and confirm briefly. Do not involve researcher or "
+        "reporter for this case.\n"
         "Always let the reporter produce the final user-facing text; never "
         "write the final report yourself."
     ),
-    tools=[get_logs, check_known, remember_issue],
+    tools=[get_alert, get_recent_alerts, check_known, remember_issue],
     sub_agents=[researcher, reporter],
 )
 
