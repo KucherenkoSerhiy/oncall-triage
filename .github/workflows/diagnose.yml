@@ -92,8 +92,7 @@ jobs:
           START=$(date -u -d "-${{ inputs.minutes }} minutes" +%Y-%m-%dT%H:%M:%SZ); END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           for m in NumberOfMessagesPublished NumberOfNotificationsDelivered NumberOfNotificationsFailed; do
             v=$(aws cloudwatch get-metric-statistics --namespace AWS/SNS --metric-name $m --dimensions Name=TopicName,Value=$PREFIX-alarms                   --start-time "$START" --end-time "$END" --period $(( ${{ inputs.minutes }} * 60 )) --statistics Sum --query 'Datapoints[0].Sum' --output text)
-            printf '%-32s %s
-' "$m" "${v:-0}"
+            echo "$m ${v:-0}"
           done
       - name: Bank Lambda log lines (payments / ledger / auth, errors and reports)
         run: |
