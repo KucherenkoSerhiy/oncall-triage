@@ -43,7 +43,7 @@ jobs:
       - run: terraform fmt -check -recursive infra
       - run: terraform -chdir=${{ matrix.root }} init -backend=false -input=false
       - run: terraform -chdir=${{ matrix.root }} validate
-      - uses: terraform-linters/setup-tflint@v4
+      - uses: terraform-linters/setup-tflint@v6
         with:
           tflint_version: v0.53.0
       - run: tflint --init
