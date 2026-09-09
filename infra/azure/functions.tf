@@ -7,7 +7,7 @@
 resource "azurerm_log_analytics_workspace" "main" {
   name                = "${local.name_prefix}-logs"
   resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
+  location            = var.location
 
   sku               = "PerGB2018"
   retention_in_days = 30
@@ -19,7 +19,7 @@ resource "azurerm_log_analytics_workspace" "main" {
 resource "azurerm_application_insights" "main" {
   name                = "${local.name_prefix}-appinsights"
   resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
+  location            = var.location
 
   workspace_id        = azurerm_log_analytics_workspace.main.id
   application_type    = "web"
@@ -31,7 +31,7 @@ resource "azurerm_application_insights" "main" {
 resource "azurerm_service_plan" "functions" {
   name                = "${local.name_prefix}-plan"
   resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
+  location            = var.location
 
   os_type  = "Linux"
   sku_name = "Y1"
@@ -90,7 +90,7 @@ data "archive_file" "functions" {
 resource "azurerm_linux_function_app" "notifications" {
   name                = "${local.name_prefix}-notifications"
   resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
+  location            = var.location
 
   service_plan_id            = azurerm_service_plan.functions.id
   storage_account_name       = azurerm_storage_account.functions.name
@@ -133,7 +133,7 @@ resource "azurerm_linux_function_app" "notifications" {
 resource "azurerm_linux_function_app" "forwarder" {
   name                = "${local.name_prefix}-forwarder"
   resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
+  location            = var.location
 
   service_plan_id            = azurerm_service_plan.functions.id
   storage_account_name       = azurerm_storage_account.functions.name

@@ -8,7 +8,7 @@ One record per decision row in [DESIGN.md](../DESIGN.md) section 2. Format: ligh
 | [0002](0002-terraform-and-helm.md) | Terraform for cloud resources, Helm for in-cluster software |
 | [0003](0003-incident-console.md) | Delivery surface is a static incident console |
 | [0004](0004-claude-via-litellm.md) | Triage agents run on Claude Haiku 4.5 through ADK's LiteLLM adapter |
-| [0005](0005-regions.md) | AWS eu-north-1 (Stockholm) and Azure westeurope |
+| [0005](0005-regions.md) | AWS eu-north-1 (Stockholm) and Azure northeurope (Ireland) |
 | [0006](0006-kubernetes-and-kafka.md) | Kubernetes and Kafka are part of the bank |
 | [0007](0007-kubernetes-on-kind.md) | The Kubernetes estate runs in kind, not a managed cloud cluster |
 | [0008](0008-delivery-pipeline.md) | Trunk-based delivery: plan on PR, approve, apply on merge, OIDC only |

@@ -59,7 +59,7 @@ resource "azurerm_monitor_metric_alert" "notifications_failures" {
 resource "azurerm_monitor_scheduled_query_rules_alert_v2" "provider_429" {
   name                = "${local.name_prefix}-customer-notifications-Provider429-Sev2"
   resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
+  location            = var.location
   scopes              = [azurerm_log_analytics_workspace.main.id]
   description         = "service=customer-notifications; the SMS/e-mail provider is returning 429 Too Many Requests (provider-429 fault or a real rate limit)."
   severity            = 2
@@ -90,7 +90,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "provider_429" {
 resource "azurerm_monitor_scheduled_query_rules_alert_v2" "backlog" {
   name                = "${local.name_prefix}-customer-notifications-Backlog-Sev3"
   resource_group_name = data.azurerm_resource_group.main.name
-  location            = data.azurerm_resource_group.main.location
+  location            = var.location
   scopes              = [azurerm_log_analytics_workspace.main.id]
   description         = "service=customer-notifications; the notifications backlog has grown past 100 (backlog fault or a real provider slowdown)."
   severity            = 3

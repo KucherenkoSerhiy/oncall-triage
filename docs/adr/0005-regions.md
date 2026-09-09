@@ -1,4 +1,4 @@
-# 0005. AWS eu-north-1 (Stockholm) and Azure westeurope
+# 0005. AWS eu-north-1 (Stockholm) and Azure northeurope (Ireland)
 
 - Status: accepted
 - Date: 2026-09-07
@@ -15,3 +15,15 @@ eu-north-1 (Stockholm) for AWS, westeurope for Azure. Route 53, CloudFront and A
 ## Consequences
 
 Cross-region latency between the estates is a few tens of milliseconds and irrelevant to alert triage.
+
+## Amendment 2026-09-10 - Azure workloads move to northeurope
+
+The first `infra/azure` apply (M5b) failed on every regional resource with
+`RequestDisallowedByAzure: The selected region is currently not accepting new
+customers` for westeurope - a capacity restriction Azure applies to newer
+subscriptions in its most popular regions. The resource group created by the
+bootstrap stays in westeurope (a resource group's location is only metadata
+for its own record); every workload resource takes `var.location`, default
+`northeurope`, which accepted a test storage account (as did swedencentral).
+northeurope is chosen over swedencentral for feature completeness on the
+Consumption plan and Azure Monitor. Data residency stays in the EU.
