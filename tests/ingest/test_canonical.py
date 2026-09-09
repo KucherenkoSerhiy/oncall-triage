@@ -97,3 +97,16 @@ def test_to_item_from_item_roundtrip():
     assert item["labels"] == {"x": "y"}
     restored = CanonicalAlert.from_item(item)
     assert restored == alert
+
+
+def test_dynamodb_safe_turns_floats_into_decimals_recursively():
+    from decimal import Decimal
+
+    from services.ingest.canonical import dynamodb_safe
+
+    out = dynamodb_safe({"a": 1.5, "b": [2.0, {"c": 3}], "d": "1.5", "e": None})
+
+    assert out["a"] == Decimal("1.5") and isinstance(out["a"], Decimal)
+    assert out["b"][0] == Decimal("2.0") and isinstance(out["b"][0], Decimal)
+    assert out["b"][1]["c"] == 3 and isinstance(out["b"][1]["c"], int)
+    assert out["d"] == "1.5" and out["e"] is None
