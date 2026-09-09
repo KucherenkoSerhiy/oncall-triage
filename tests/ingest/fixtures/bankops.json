@@ -1,0 +1,12 @@
+{
+  "source": "bankops",
+  "estate": "aws",
+  "service": "payments-api",
+  "alert_name": "HighLatency",
+  "severity": "sev2",
+  "title": "High latency on payments-api",
+  "description": "P99 latency exceeded 800ms for 5 minutes",
+  "sample_logs": ["2024-01-01T00:00:00Z ERROR timeout calling ledger-service"],
+  "labels": {"env": "prod", "region": "eu-north-1"},
+  "fired_at": "2024-01-01T00:00:00Z"
+}

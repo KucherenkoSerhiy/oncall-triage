@@ -1,0 +1,39 @@
+{
+  "receiver": "kafka-oncall",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "KafkaConsumerLagHigh",
+        "service": "ledger-consumer",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "Kafka consumer lag is high",
+        "description": "Lag exceeded 10000 messages for topic ledger-events"
+      },
+      "startsAt": "2024-01-01T00:15:00Z"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "KafkaConsumerLagHigh",
+        "job": "ledger-consumer-job",
+        "severity": "warning"
+      },
+      "annotations": {},
+      "startsAt": "2024-01-01T00:16:00Z"
+    },
+    {
+      "status": "resolved",
+      "labels": {
+        "alertname": "KafkaConsumerLagHigh",
+        "service": "ledger-consumer",
+        "severity": "critical"
+      },
+      "annotations": {"summary": "Kafka consumer lag is high"},
+      "startsAt": "2024-01-01T00:10:00Z"
+    }
+  ]
+}

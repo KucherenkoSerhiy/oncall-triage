@@ -1,0 +1,24 @@
+{
+  "schemaId": "azureMonitorCommonAlertSchema",
+  "data": {
+    "essentials": {
+      "alertId": "/subscriptions/xxx/alerts/1",
+      "alertRule": "HighCpuAlert",
+      "severity": "Sev2",
+      "signalType": "Metric",
+      "monitorCondition": "Fired",
+      "monitoringService": "Platform",
+      "alertTargetIDs": [
+        "/subscriptions/xxx/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/nordwind-triage-demo-ledger-svc"
+      ],
+      "description": "CPU utilization exceeded 90% for 10 minutes",
+      "firedDateTime": "2024-01-01T00:10:00Z"
+    },
+    "alertContext": {
+      "condition": {
+        "windowSize": "PT5M",
+        "allOf": [{"metricName": "Percentage CPU", "threshold": 90}]
+      }
+    }
+  }
+}
