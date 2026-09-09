@@ -1,0 +1,90 @@
+name: diagnose
+
+# Read-only look at the live AWS spine, from the Actions UI, with the same
+# OIDC role the deploy uses - so an incident (a smoke probe that saw no
+# verdict, a queue backing up) can be investigated without a laptop that
+# holds cloud credentials. Prints: Lambda errors/throttles/duration for the
+# last window, queue depths (incl. DLQs), the daily LLM cap counter, the
+# newest worker log lines, and optionally one alert record by id.
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: look-back window in minutes
+        type: string
+        default: "60"
+      alert_id:
+        description: optional alert id to print from the alerts table
+        type: string
+        required: false
+      log_lines:
+        description: worker/ingest log lines to print (newest first)
+        type: string
+        default: "40"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-north-1
+  PREFIX: nordwind-triage-demo
+
+jobs:
+  aws:
+    name: aws spine - metrics, queues, logs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Lambda metrics (Errors / Throttles / Invocations / p95 Duration)
+        run: |
+          START=$(date -u -d "-${{ inputs.minutes }} minutes" +%Y-%m-%dT%H:%M:%SZ); END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          for fn in ingest triage-worker console-api payments ledger auth; do
+            for m in Errors Throttles Invocations; do
+              v=$(aws cloudwatch get-metric-statistics --namespace AWS/Lambda --metric-name $m \
+                    --dimensions Name=FunctionName,Value=$PREFIX-$fn --start-time "$START" --end-time "$END" \
+                    --period $(( ${{ inputs.minutes }} * 60 )) --statistics Sum --query 'Datapoints[0].Sum' --output text)
+              printf '%-16s %-12s %s\n' "$fn" "$m" "${v:-0}"
+            done
+            d=$(aws cloudwatch get-metric-statistics --namespace AWS/Lambda --metric-name Duration \
+                  --dimensions Name=FunctionName,Value=$PREFIX-$fn --start-time "$START" --end-time "$END" \
+                  --period $(( ${{ inputs.minutes }} * 60 )) --extended-statistics p95 --query 'Datapoints[0].ExtendedStatistics.p95' --output text)
+            printf '%-16s %-12s %s ms\n' "$fn" "Duration p95" "${d:-None}"
+          done
+      - name: Queues (visible / in flight / DLQ)
+        run: |
+          for q in alerts alerts-dlq ledger ledger-dlq; do
+            url=$(aws sqs get-queue-url --queue-name $PREFIX-$q --query QueueUrl --output text)
+            aws sqs get-queue-attributes --queue-url "$url" \
+              --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible ApproximateAgeOfOldestMessage \
+              --query "Attributes" --output json | jq -c --arg q "$q" '{queue:$q} + .'
+          done
+      - name: Account concurrency + worker configuration
+        run: |
+          aws lambda get-account-settings --query 'AccountLimit.{ConcurrentExecutions:ConcurrentExecutions,Unreserved:UnreservedConcurrentExecutions}' --output table
+          aws lambda get-function-configuration --function-name $PREFIX-triage-worker \
+            --query '{State:State,LastUpdateStatus:LastUpdateStatus,Timeout:Timeout,Memory:MemorySize,Image:CodeSha256,Env:Environment.Variables}' --output json \
+            | jq 'del(.Env.ANTHROPIC_API_KEY) | .Env |= with_entries(select(.key|test("KEY|SECRET|TOKEN")|not))'
+      - name: Daily LLM cap counter (alerts table, key cap#<utc date>)
+        run: |
+          TODAY=$(date -u +%F)
+          aws dynamodb get-item --table-name $PREFIX-alerts --key "{\"alert_id\":{\"S\":\"cap#$TODAY\"}}" --output json             | jq -c '{date: "'"$TODAY"'", item: (.Item // "no verdicts yet today")}'
+      - name: Newest worker + ingest log lines
+        run: |
+          SINCE=$(( ($(date +%s) - ${{ inputs.minutes }} * 60) * 1000 ))
+          for lg in triage-worker ingest; do
+            echo "=== /aws/lambda/$PREFIX-$lg ==="
+            aws logs filter-log-events --log-group-name "/aws/lambda/$PREFIX-$lg" --start-time "$SINCE" \
+              --query 'events[].[timestamp,message]' --output text | sort -r | head -n ${{ inputs.log_lines }} \
+              | sed -E 's/(sk-ant-[A-Za-z0-9_-]+)/sk-ant-***REDACTED***/g'
+          done
+      - name: Alert record
+        if: inputs.alert_id != ''
+        run: |
+          aws dynamodb get-item --table-name $PREFIX-alerts --key "{\"alert_id\":{\"S\":\"${{ inputs.alert_id }}\"}}" --output json \
+            | jq '.Item // "not found"'
