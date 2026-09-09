@@ -206,7 +206,7 @@ The existing three roles survive intact; only the tools change.
 | `reporter` | two formats | two formats + a machine-readable verdict block `{severity, action: page|monitor|ack, known}` the console renders as chips |
 | `remember_issue` | append to JSON | put to DynamoDB; also callable from the console (teach) |
 | model | `gemini-3.5-flash-lite` | `LiteLlm(model="anthropic/claude-haiku-4-5-20251001")`; model id + prompt hash stored on every verdict for audit |
-| runtime | `adk web` | ADK `Runner` + `InMemorySessionService` per invocation inside a Lambda handler triggered by SQS — one alert = one session, nothing long-lived |
+| runtime | `adk web` | ADK `Runner` + `InMemorySessionService` per invocation inside an **image-based** Lambda (arm64) triggered by SQS — one alert = one session, nothing long-lived. The image is built and pushed by `deploy.yml`'s `image` job, tagged by git SHA |
 
 ### 4.4 The Kubernetes estate — kind, Kafka, and the two routes
 
@@ -551,7 +551,7 @@ None open. O1–O5 were resolved on 2026-09-07 into D9–D13 above; O6
 | M0 | Repo on GitHub ✅, `ci.yml` running pytest, target layout, this design merged | 14 tests green in Actions | — |
 | M1 | **Pipelines + bootstrap**: Terraform state bucket, OIDC role (AWS), federated identity (Azure), budgets; `deploy.yml` with plan-comment + `demo` approval; `Taskfile`, `pre-commit`, `checkov`/`tflint`/`trivy` in `ci.yml`; empty root modules that plan clean | full `ci.yml` green on an empty stack | a PR shows a plan comment; merging applies after your approval |
 | M2 | Alert spine without LLM: ingest (HMAC, scrubber, dedup) → DynamoDB → SQS → stub worker; console API + static console; `bankops fire` | pytest for scrubber / HMAC / dedup / schema; console renders fixtures | `bankops fire --service payments` shows on the console in < 5 s |
-| M3 | Real triage worker: ADK on Lambda container, LiteLLM → Claude, `KnownIssueStore` + DynamoStore, teach from console; image by git SHA; rollback input on `deploy.yml` | wiring tests + store contract tests against `moto` | fire known → FORMAT A; fire new → FORMAT B; teach → re-fire → FORMAT A; roll back to previous SHA and re-fire |
+| M3 | Real triage worker: ADK on an image-based Lambda built and pushed by the pipeline (`ecr` → `image` jobs in `deploy.yml`), LiteLLM → Claude, `KnownIssueStore` + DynamoStore, teach from console; image by git SHA; rollback input on `deploy.yml` | wiring tests + store contract tests against `moto` | fire known → FORMAT A; fire new → FORMAT B; teach → re-fire → FORMAT A; roll back to previous SHA and re-fire |
 | M4 | AWS estate: payments/ledger/auth Lambdas + CloudWatch alarms + SNS → ingest; `bankops chaos` (AWS) | unit tests for fault modes | chaos payments errors → alarm → verdict within ~3 min |
 | M5 | Azure estate: forwarder + customer-notifications Functions, Azure Monitor rules, action group; `bankops chaos` (Azure) | forwarder HMAC tests | chaos notifications provider-429 → Azure alert → forwarder → verdict within ~4 min |
 | M6 | Kubernetes estate on kind: `nordwind-bank` chart (3 services), kube-prometheus-stack, PrometheusRules, Alertmanager route B → forwarder; `task estate-up`; chaos via ConfigMap; `estate-demo.yml` v1 | `helm lint` + `kubeconform`; chart installs on kind in CI; scenario assertions | `task estate-up` < 5 min; chaos cards-authorization timeouts → Prometheus → Alertmanager → forwarder → verdict |

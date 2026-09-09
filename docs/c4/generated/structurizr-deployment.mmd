@@ -124,41 +124,48 @@ graph LR
         style 192 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
-    end
+      subgraph 194 ["ECR"]
+        style 194 fill:#ffffff,stroke:#444444,color:#444444
 
-    subgraph 194 ["Azure"]
-      style 194 fill:#ffffff,stroke:#444444,color:#444444
-
-      subgraph 195 ["Function App (consumption)"]
+        195["<div style='font-weight: bold'>triage-worker image</div><div style='font-size: 70%; margin-top: 0px'>[Infrastructure Node]</div><div style='font-size: 80%; margin-top:10px'>Immutable image tagged by git<br />SHA (also `:latest`); built<br />and pushed by deploy.yml's<br />`image` job, run by the<br />Lambda above.</div>"]
         style 195 fill:#ffffff,stroke:#444444,color:#444444
-
-        196["<div style='font-weight: bold'>customer-notifications</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>SMS / e-mail fan-out. Chaos:<br />provider-429, backlog.</div>"]
-        style 196 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        197["<div style='font-weight: bold'>alert forwarder</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>Receives Azure Monitor<br />action-group calls and<br />Alertmanager route-B<br />webhooks, signs with HMAC,<br />posts to ingest.</div>"]
-        style 197 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      end
-
-      subgraph 201 ["Azure Monitor"]
-        style 201 fill:#ffffff,stroke:#444444,color:#444444
-
-        202["<div style='font-weight: bold'>Azure Monitor</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Monitor]</div><div style='font-size: 80%; margin-top:10px'>Metric alert rules + action<br />group.</div>"]
-        style 202 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
     end
 
-    subgraph 205 ["Anthropic"]
-      style 205 fill:#ffffff,stroke:#444444,color:#444444
+    subgraph 196 ["Azure"]
+      style 196 fill:#ffffff,stroke:#444444,color:#444444
 
-      206["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Haiku 4.5, reached<br />through ADK's LiteLLM<br />adapter.</div>"]
-      style 206 fill:#8fa1b0,stroke:#64707b,color:#ffffff
+      subgraph 197 ["Function App (consumption)"]
+        style 197 fill:#ffffff,stroke:#444444,color:#444444
+
+        198["<div style='font-weight: bold'>customer-notifications</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>SMS / e-mail fan-out. Chaos:<br />provider-429, backlog.</div>"]
+        style 198 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        199["<div style='font-weight: bold'>alert forwarder</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>Receives Azure Monitor<br />action-group calls and<br />Alertmanager route-B<br />webhooks, signs with HMAC,<br />posts to ingest.</div>"]
+        style 199 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      end
+
+      subgraph 203 ["Azure Monitor"]
+        style 203 fill:#ffffff,stroke:#444444,color:#444444
+
+        204["<div style='font-weight: bold'>Azure Monitor</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Monitor]</div><div style='font-size: 80%; margin-top:10px'>Metric alert rules + action<br />group.</div>"]
+        style 204 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      end
+
     end
 
-    subgraph 208 ["Cloudflare"]
-      style 208 fill:#ffffff,stroke:#444444,color:#444444
+    subgraph 207 ["Anthropic"]
+      style 207 fill:#ffffff,stroke:#444444,color:#444444
 
-      209["<div style='font-weight: bold'>NS delegation</div><div style='font-size: 70%; margin-top: 0px'>[Infrastructure Node]</div>"]
-      style 209 fill:#ffffff,stroke:#444444,color:#444444
+      208["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Haiku 4.5, reached<br />through ADK's LiteLLM<br />adapter.</div>"]
+      style 208 fill:#8fa1b0,stroke:#64707b,color:#ffffff
+    end
+
+    subgraph 210 ["Cloudflare"]
+      style 210 fill:#ffffff,stroke:#444444,color:#444444
+
+      211["<div style='font-weight: bold'>NS delegation</div><div style='font-size: 70%; margin-top: 0px'>[Infrastructure Node]</div>"]
+      style 211 fill:#ffffff,stroke:#444444,color:#444444
     end
 
     103-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->106
@@ -215,11 +222,11 @@ graph LR
     186-. "<div>GET alerts, verdicts; POST<br />known-issue</div><div style='font-size: 70%'>[HTTPS]</div>" .->169
     164-. "<div>read Anthropic key + HMAC<br />secret</div><div style='font-size: 70%'></div>" .->189
     164-. "<div>latency + token metrics</div><div style='font-size: 70%'></div>" .->192
-    110-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->197
-    141-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->197
-    197-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->161
-    196-. "<div>telemetry</div><div style='font-size: 70%'></div>" .->202
-    202-. "<div>action group webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->197
-    164-. "<div>triage / research / report<br />turns</div><div style='font-size: 70%'>[HTTPS]</div>" .->206
+    110-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->199
+    141-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->199
+    199-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->161
+    198-. "<div>telemetry</div><div style='font-size: 70%'></div>" .->204
+    204-. "<div>action group webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->199
+    164-. "<div>triage / research / report<br />turns</div><div style='font-size: 70%'>[HTTPS]</div>" .->208
 
   end

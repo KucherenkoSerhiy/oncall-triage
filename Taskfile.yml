@@ -3,7 +3,7 @@
 version: "3"
 
 vars:
-  TF_ROOTS: infra/bootstrap/aws infra/bootstrap/azure infra/aws infra/azure
+  TF_ROOTS: infra/bootstrap/aws infra/bootstrap/azure infra/aws-ecr infra/aws infra/azure
   C4_DIR: docs/c4
 
 tasks:

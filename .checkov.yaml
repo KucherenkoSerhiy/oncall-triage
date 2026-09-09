@@ -42,3 +42,6 @@ skip-check:
   - CKV_AWS_86    # CloudFront access logging - needs a second bucket; API Gateway already logs every request
   - CKV_AWS_310   # CloudFront origin failover - single S3 origin; no second origin to fail over to
   - CKV_AWS_374   # CloudFront geo restriction - public console with no geographic access policy to enforce
+
+  # M3b - the triage-worker image (infra/aws-ecr/ecr.tf, infra/aws/lambdas.tf).
+  - CKV_AWS_136   # ECR KMS encryption - spec requires AES256 (AWS-managed key), same free-tier trade-off as the other stores
