@@ -37,3 +37,9 @@ variable "ingest_hmac_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "location" {
+  description = "Region for every resource in this root. The resource group (bootstrap) lives in westeurope, but that region refuses new resources on this subscription (RequestDisallowedByAzure - 'not accepting new customers', 2026-09-09), so workloads go to northeurope; see ADR 0005."
+  type        = string
+  default     = "northeurope"
+}
