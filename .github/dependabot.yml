@@ -11,3 +11,8 @@ updates:
   - package-ecosystem: terraform
     directories: ["/infra/aws", "/infra/azure", "/infra/bootstrap/aws", "/infra/bootstrap/azure"]
     schedule: { interval: weekly }
+    # Provider majors are adopted deliberately (they change resource
+    # schemas); the version constraints in versions.tf are the decision.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
