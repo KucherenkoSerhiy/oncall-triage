@@ -283,86 +283,91 @@ graph LR
         style 161 fill:#14b8a6,stroke:#0e8074,color:#0e1419
         164["<div style='font-weight: bold'>triage worker</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda container image (Python, Google ADK)]</div><div style='font-size: 80%; margin-top:10px'>Runs the three-role ADK<br />workflow once per alert and<br />writes the verdict.</div>"]
         style 164 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        165["<div style='font-weight: bold'>console API</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda + API Gateway HTTP API]</div><div style='font-size: 80%; margin-top:10px'>Reads alerts and verdicts;<br />accepts taught known issues.<br />Bearer-token protected (v1).</div>"]
+        165["<div style='font-weight: bold'>payments</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>Card payment authorisation<br />API. Chaos: errors, latency,<br />pool.</div>"]
         style 165 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        166["<div style='font-weight: bold'>payments</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>Card payment authorisation<br />API. Chaos: errors, latency,<br />pool.</div>"]
+        166["<div style='font-weight: bold'>ledger</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>Double-entry posting worker<br />fed by SQS. Chaos:<br />reconciliation-mismatch, lag.</div>"]
         style 166 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        167["<div style='font-weight: bold'>ledger</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>Double-entry posting worker<br />fed by SQS. Chaos:<br />reconciliation-mismatch, lag.</div>"]
+        167["<div style='font-weight: bold'>auth</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>Token issuance / JWKS. Chaos:<br />jwks-rotation, lockouts.</div>"]
         style 167 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        168["<div style='font-weight: bold'>auth</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>Token issuance / JWKS. Chaos:<br />jwks-rotation, lockouts.</div>"]
-        style 168 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
-      subgraph 169 ["SQS"]
-        style 169 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 168 ["API Gateway"]
+        style 168 fill:#ffffff,stroke:#444444,color:#444444
 
-        170["<div style='font-weight: bold'>alerts queue</div><div style='font-size: 70%; margin-top: 0px'>[Container: SQS + DLQ]</div><div style='font-size: 80%; margin-top:10px'>Decouples ingestion from LLM<br />latency; dead-letter queue<br />for poison alerts.</div>"]
-        style 170 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        169["<div style='font-weight: bold'>console API</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda + API Gateway HTTP API]</div><div style='font-size: 80%; margin-top:10px'>Reads alerts and verdicts;<br />accepts taught known issues.<br />Bearer-token protected (v1).</div>"]
+        style 169 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
-      subgraph 173 ["SNS"]
-        style 173 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 170 ["SQS"]
+        style 170 fill:#ffffff,stroke:#444444,color:#444444
 
-        174["<div style='font-weight: bold'>alarm topic</div><div style='font-size: 70%; margin-top: 0px'>[Container: SNS]</div><div style='font-size: 80%; margin-top:10px'>CloudWatch alarm state<br />changes fan out here.</div>"]
-        style 174 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        171["<div style='font-weight: bold'>alerts queue</div><div style='font-size: 70%; margin-top: 0px'>[Container: SQS + DLQ]</div><div style='font-size: 80%; margin-top:10px'>Decouples ingestion from LLM<br />latency; dead-letter queue<br />for poison alerts.</div>"]
+        style 171 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
-      subgraph 179 ["DynamoDB"]
-        style 179 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 174 ["SNS"]
+        style 174 fill:#ffffff,stroke:#444444,color:#444444
 
-        180[("<div style='font-weight: bold'>alerts, verdicts, known-issues</div><div style='font-size: 70%; margin-top: 0px'>[Container: DynamoDB (3 tables)]</div><div style='font-size: 80%; margin-top:10px'>Alert log, one verdict per<br />alert, taught known issues<br />per service.</div>")]
-        style 180 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        175["<div style='font-weight: bold'>alarm topic</div><div style='font-size: 70%; margin-top: 0px'>[Container: SNS]</div><div style='font-size: 80%; margin-top:10px'>CloudWatch alarm state<br />changes fan out here.</div>"]
+        style 175 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
-      subgraph 184 ["CloudFront + S3"]
-        style 184 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 180 ["DynamoDB"]
+        style 180 fill:#ffffff,stroke:#444444,color:#444444
 
-        185["<div style='font-weight: bold'>incident console</div><div style='font-size: 70%; margin-top: 0px'>[Container: Static site on S3 + CloudFront at triage.serhiykucherenko.dev]</div><div style='font-size: 80%; margin-top:10px'>Live alert list, verdicts,<br />known-issues editor.</div>"]
-        style 185 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        181[("<div style='font-weight: bold'>alerts, verdicts, known-issues</div><div style='font-size: 70%; margin-top: 0px'>[Container: DynamoDB (3 tables)]</div><div style='font-size: 80%; margin-top:10px'>Alert log, one verdict per<br />alert, taught known issues<br />per service.</div>")]
+        style 181 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
-      subgraph 187 ["SSM"]
-        style 187 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 185 ["CloudFront + S3"]
+        style 185 fill:#ffffff,stroke:#444444,color:#444444
 
-        188["<div style='font-weight: bold'>secrets</div><div style='font-size: 70%; margin-top: 0px'>[Container: SSM Parameter Store (SecureString)]</div><div style='font-size: 80%; margin-top:10px'>Anthropic key and webhook<br />HMAC secret.</div>"]
-        style 188 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        186["<div style='font-weight: bold'>incident console</div><div style='font-size: 70%; margin-top: 0px'>[Container: Static site on S3 + CloudFront at triage.serhiykucherenko.dev]</div><div style='font-size: 80%; margin-top:10px'>Live alert list, verdicts,<br />known-issues editor.</div>"]
+        style 186 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
-      subgraph 190 ["CloudWatch"]
-        style 190 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 188 ["SSM"]
+        style 188 fill:#ffffff,stroke:#444444,color:#444444
 
-        191["<div style='font-weight: bold'>self-observability</div><div style='font-size: 70%; margin-top: 0px'>[Container: CloudWatch dashboard + alarms]</div><div style='font-size: 80%; margin-top:10px'>Ingest rate, verdict latency<br />p50/p95, tokens per day, DLQ<br />depth; SLO 95% of verdicts<br />within 90 s.</div>"]
-        style 191 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        189["<div style='font-weight: bold'>secrets</div><div style='font-size: 70%; margin-top: 0px'>[Container: SSM Parameter Store (SecureString)]</div><div style='font-size: 80%; margin-top:10px'>Anthropic key and webhook<br />HMAC secret.</div>"]
+        style 189 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      end
+
+      subgraph 191 ["CloudWatch"]
+        style 191 fill:#ffffff,stroke:#444444,color:#444444
+
+        192["<div style='font-weight: bold'>self-observability</div><div style='font-size: 70%; margin-top: 0px'>[Container: CloudWatch dashboard + alarms]</div><div style='font-size: 80%; margin-top:10px'>Ingest rate, verdict latency<br />p50/p95, tokens per day, DLQ<br />depth; SLO 95% of verdicts<br />within 90 s.</div>"]
+        style 192 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
     end
 
-    subgraph 193 ["Azure"]
-      style 193 fill:#ffffff,stroke:#444444,color:#444444
+    subgraph 194 ["Azure"]
+      style 194 fill:#ffffff,stroke:#444444,color:#444444
 
-      subgraph 194 ["Function App (consumption)"]
-        style 194 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 195 ["Function App (consumption)"]
+        style 195 fill:#ffffff,stroke:#444444,color:#444444
 
-        195["<div style='font-weight: bold'>customer-notifications</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>SMS / e-mail fan-out. Chaos:<br />provider-429, backlog.</div>"]
-        style 195 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        196["<div style='font-weight: bold'>alert forwarder</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>Receives Azure Monitor<br />action-group calls and<br />Alertmanager route-B<br />webhooks, signs with HMAC,<br />posts to ingest.</div>"]
+        196["<div style='font-weight: bold'>customer-notifications</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>SMS / e-mail fan-out. Chaos:<br />provider-429, backlog.</div>"]
         style 196 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        197["<div style='font-weight: bold'>alert forwarder</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>Receives Azure Monitor<br />action-group calls and<br />Alertmanager route-B<br />webhooks, signs with HMAC,<br />posts to ingest.</div>"]
+        style 197 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
-      subgraph 200 ["Azure Monitor"]
-        style 200 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 201 ["Azure Monitor"]
+        style 201 fill:#ffffff,stroke:#444444,color:#444444
 
-        201["<div style='font-weight: bold'>Azure Monitor</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Monitor]</div><div style='font-size: 80%; margin-top:10px'>Metric alert rules + action<br />group.</div>"]
-        style 201 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        202["<div style='font-weight: bold'>Azure Monitor</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Monitor]</div><div style='font-size: 80%; margin-top:10px'>Metric alert rules + action<br />group.</div>"]
+        style 202 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
     end
 
-    subgraph 204 ["Anthropic"]
-      style 204 fill:#ffffff,stroke:#444444,color:#444444
+    subgraph 205 ["Anthropic"]
+      style 205 fill:#ffffff,stroke:#444444,color:#444444
 
-      205["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Haiku 4.5, reached<br />through ADK's LiteLLM<br />adapter.</div>"]
-      style 205 fill:#8fa1b0,stroke:#64707b,color:#ffffff
+      206["<div style='font-weight: bold'>Anthropic API</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Claude Haiku 4.5, reached<br />through ADK's LiteLLM<br />adapter.</div>"]
+      style 206 fill:#8fa1b0,stroke:#64707b,color:#ffffff
     end
 
     103-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->106
@@ -407,24 +412,24 @@ graph LR
     131-. "<div>consume alerts.raw</div><div style='font-size: 70%'></div>" .->156
     118-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->161
     156-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->161
-    161-. "<div>enqueue alert id</div><div style='font-size: 70%'></div>" .->170
-    170-. "<div>triggers</div><div style='font-size: 70%'></div>" .->164
-    174-. "<div>notification</div><div style='font-size: 70%'>[SNS subscription]</div>" .->161
-    166-. "<div>alarm state change</div><div style='font-size: 70%'></div>" .->174
-    167-. "<div>alarm state change</div><div style='font-size: 70%'></div>" .->174
-    168-. "<div>alarm state change</div><div style='font-size: 70%'></div>" .->174
-    161-. "<div>put alert</div><div style='font-size: 70%'></div>" .->180
-    164-. "<div>read alert + known issues,<br />write verdict</div><div style='font-size: 70%'></div>" .->180
-    165-. "<div>query / put</div><div style='font-size: 70%'></div>" .->180
-    185-. "<div>GET alerts, verdicts; POST<br />known-issue</div><div style='font-size: 70%'>[HTTPS]</div>" .->165
-    164-. "<div>read Anthropic key + HMAC<br />secret</div><div style='font-size: 70%'></div>" .->188
-    164-. "<div>latency + token metrics</div><div style='font-size: 70%'></div>" .->191
-    110-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->196
-    141-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->196
-    196-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->161
-    195-. "<div>telemetry</div><div style='font-size: 70%'></div>" .->201
-    201-. "<div>action group webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->196
-    164-. "<div>triage / research / report<br />turns</div><div style='font-size: 70%'>[HTTPS]</div>" .->205
+    161-. "<div>enqueue alert id</div><div style='font-size: 70%'></div>" .->171
+    171-. "<div>triggers</div><div style='font-size: 70%'></div>" .->164
+    175-. "<div>notification</div><div style='font-size: 70%'>[SNS subscription]</div>" .->161
+    165-. "<div>alarm state change</div><div style='font-size: 70%'></div>" .->175
+    166-. "<div>alarm state change</div><div style='font-size: 70%'></div>" .->175
+    167-. "<div>alarm state change</div><div style='font-size: 70%'></div>" .->175
+    161-. "<div>put alert</div><div style='font-size: 70%'></div>" .->181
+    164-. "<div>read alert + known issues,<br />write verdict</div><div style='font-size: 70%'></div>" .->181
+    169-. "<div>query / put</div><div style='font-size: 70%'></div>" .->181
+    186-. "<div>GET alerts, verdicts; POST<br />known-issue</div><div style='font-size: 70%'>[HTTPS]</div>" .->169
+    164-. "<div>read Anthropic key + HMAC<br />secret</div><div style='font-size: 70%'></div>" .->189
+    164-. "<div>latency + token metrics</div><div style='font-size: 70%'></div>" .->192
+    110-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->197
+    141-. "<div>route B: KafkaBrokerDown,<br />KafkaRelayLag, or route A<br />failing</div><div style='font-size: 70%'>[HTTPS]</div>" .->197
+    197-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->161
+    196-. "<div>telemetry</div><div style='font-size: 70%'></div>" .->202
+    202-. "<div>action group webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->197
+    164-. "<div>triage / research / report<br />turns</div><div style='font-size: 70%'>[HTTPS]</div>" .->206
 
   end
 ```

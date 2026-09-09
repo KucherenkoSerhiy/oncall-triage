@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nordwind Triage Console</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Nordwind Triage Console</h1>
+      <p id="status" role="status">connecting&hellip;</p>
+      <button id="change-token" type="button">Change token</button>
+    </header>
+
+    <dialog id="token-dialog">
+      <form id="token-form">
+        <h2>Bearer token</h2>
+        <p>Reads and writes to the console API require a bearer token. It is kept only in this browser's local storage.</p>
+        <label for="token-input">Console token</label>
+        <input id="token-input" name="token" type="password" autocomplete="off" required />
+        <button type="submit">Save</button>
+      </form>
+    </dialog>
+
+    <main>
+      <section aria-labelledby="alerts-heading">
+        <h2 id="alerts-heading">Alerts</h2>
+        <table id="alerts-table">
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">Severity</th>
+              <th scope="col">Service</th>
+              <th scope="col">Alert</th>
+              <th scope="col">Status</th>
+              <th scope="col">Occurrences</th>
+              <th scope="col">Verdict</th>
+              <th scope="col">Teach</th>
+            </tr>
+          </thead>
+          <tbody id="alerts-body"></tbody>
+        </table>
+        <p id="alerts-empty" hidden>No alerts yet.</p>
+      </section>
+
+      <section aria-labelledby="known-issues-heading">
+        <h2 id="known-issues-heading">Known issues</h2>
+        <div id="known-issues-list"></div>
+        <p id="known-issues-empty" hidden>No known issues taught yet.</p>
+      </section>
+    </main>
+
+    <template id="teach-form-template">
+      <form class="teach-form">
+        <label>
+          Service
+          <input name="service" type="text" required />
+        </label>
+        <label>
+          Pattern
+          <input name="pattern" type="text" required />
+        </label>
+        <label>
+          Explanation
+          <input name="explanation" type="text" required />
+        </label>
+        <button type="submit">Teach</button>
+      </form>
+    </template>
+
+    <template id="known-issue-template">
+      <article class="known-issue">
+        <p class="pattern"></p>
+        <p class="explanation"></p>
+        <button type="button" class="delete-known-issue">Delete</button>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
