@@ -47,6 +47,12 @@ resource "azuread_service_principal" "github" {
 }
 
 resource "azuread_application_federated_identity_credential" "github" {
+  # The pull_request subject lets pull requests of THIS repository (pinned by
+  # name and by immutable id) run `terraform plan`; the identity is
+  # Contributor on a single resource group and fork PRs never receive an
+  # id-token. Moving PR plans to an environment-scoped subject on both
+  # clouds is scheduled for M9 (needs a bootstrap credential session).
+  #checkov:skip=CKV_AZURE_249:pull_request subject is pinned to this repository; environment-scoped subject planned for M9
   for_each = local.federated_subjects
 
   application_id = azuread_application.github.id
