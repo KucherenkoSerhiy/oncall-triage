@@ -174,24 +174,32 @@ jobs:
   # one-time/rotation path, infra/README.md documents the equivalent local
   # `aws ssm put-parameter` command.
   anthropic_key:
-    name: anthropic key - set/rotate (manual only)
+    name: anthropic key - sync the repository secret (or a dispatch input) into SSM
     needs: preflight
-    if: needs.preflight.outputs.ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.anthropic_api_key != ''
+    if: needs.preflight.outputs.ready == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      KEY_INPUT: ${{ inputs.anthropic_api_key }}
+      KEY_SECRET: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - name: Mask the key before it can appear in any log line
-        run: echo "::add-mask::${{ inputs.anthropic_api_key }}"
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Put the key in SSM
+      - name: Put the key in SSM (dispatch input wins; otherwise the ANTHROPIC_API_KEY secret)
+        # The owner keeps the key in the repository secret store; every
+        # non-PR deploy re-syncs it into the SSM parameter the worker reads,
+        # so rotation is `gh secret set` plus any deploy. The value is masked
+        # before it can reach a log line and never leaves the runner.
         run: |
-          aws ssm put-parameter \
-            --name "/nordwind-triage/demo/anthropic-api-key" \
-            --type SecureString \
-            --value "${{ inputs.anthropic_api_key }}" \
-            --overwrite
+          KEY="${KEY_INPUT:-$KEY_SECRET}"
+          if [ -z "$KEY" ]; then
+            echo "::notice::no Anthropic key available (dispatch input empty and ANTHROPIC_API_KEY secret unset) - SSM parameter left untouched"
+            exit 0
+          fi
+          echo "::add-mask::$KEY"
+          aws ssm put-parameter --name "/nordwind-triage/demo/anthropic-api-key" --type SecureString --value "$KEY" --overwrite >/dev/null
+          echo "synced /nordwind-triage/demo/anthropic-api-key"
 
   plan:
     name: plan - ${{ matrix.root }}

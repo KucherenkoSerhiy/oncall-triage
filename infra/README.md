@@ -101,10 +101,12 @@ aws ssm put-parameter \
   --overwrite
 ```
 
-Or, without a local AWS credential, from the Actions UI: run `deploy.yml`
-via `workflow_dispatch` with the `anthropic_api_key` input set - it runs
-the same command with the deploy role and masks the value in the log
-(`::add-mask::`) before `plan` runs.
+Or, without a local AWS credential: store the key as the repository secret
+`ANTHROPIC_API_KEY` (`gh secret set ANTHROPIC_API_KEY`). Every non-PR run of
+`deploy.yml` syncs that secret into the SSM parameter with the deploy role
+(masked in the log) before `plan`; a `workflow_dispatch` `anthropic_api_key`
+input overrides it for one run. Rotation is therefore `gh secret set` plus
+any deploy.
 
 ## Deploy ordering
 
@@ -134,6 +136,23 @@ gh workflow run deploy.yml -f root=aws -f worker_image_sha=sha-<sha>
 current commit as a new image, but the explicit `worker_image_sha` input
 wins over the freshly-built one, so the Lambda points at the older,
 already-verified image.
+
+## One-time account prerequisites (outside Terraform)
+
+Some AWS services create a *service-linked role* the first time they are
+used in an account. Creating one needs `iam:CreateServiceLinkedRole`, which
+the deploy role deliberately does not hold, so these are created once by a
+human session (CloudShell in the console is enough - no key involved):
+
+```bash
+# API Gateway custom domain names (used by infra/aws api.tf)
+aws iam create-service-linked-role --aws-service-name ops.apigateway.amazonaws.com
+```
+
+Symptom when missing: `apply - aws` fails on `aws_apigatewayv2_domain_name`
+with "Caller does not have permissions to create a Service Linked Role".
+Re-running the deploy after the command succeeds continues from the saved
+state.
 
 ## Conventions
 
