@@ -7,10 +7,10 @@ name: deploy
 
 on:
   pull_request:
-    paths: [infra/**, .github/workflows/deploy.yml]
+    paths: [infra/aws/**, infra/azure/**, infra/modules/**, .github/workflows/deploy.yml]
   push:
     branches: [master, main]
-    paths: [infra/**, .github/workflows/deploy.yml]
+    paths: [infra/aws/**, infra/azure/**, infra/modules/**, .github/workflows/deploy.yml]
   workflow_dispatch:
     inputs:
       root:
@@ -34,8 +34,11 @@ defaults:
   run:
     shell: bash
 
+# One queue for every deploy run, whatever the ref: PR plans and master
+# applies share the same Terraform state, and two runs racing for the lock
+# fail one of them. Bootstrap roots are human-applied and never trigger this.
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-shared-state
   cancel-in-progress: false
 
 env:
