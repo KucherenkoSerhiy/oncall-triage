@@ -76,7 +76,7 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 | M2 | Alert spine without LLM: ingest → DynamoDB → SQS, console + API, `bankops fire`, custom domain | ✅ live at [triage.serhiykucherenko.dev](https://triage.serhiykucherenko.dev) (2026-09-09) |
 | M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | ✅ live (2026-09-09): real Claude verdicts via the image-based worker, smoke asserts a model verdict + a known-issue short-circuit |
 | M4 | AWS estate: three services + CloudWatch alarms + chaos | 🔨 building ([#18](https://github.com/KucherenkoSerhiy/oncall-triage/issues/18)) |
-| M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ⏳ [#19](https://github.com/KucherenkoSerhiy/oncall-triage/issues/19), [#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20) |
+| M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ✅ deployed ([#19](https://github.com/KucherenkoSerhiy/oncall-triage/issues/19), [#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20)) - live probe recorded on the PR |
 | M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ⏳ [#21](https://github.com/KucherenkoSerhiy/oncall-triage/issues/21), [#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22) |
 | M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | ⏳ [#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24) |
 | M8 | C4 drift check against Terraform tags and Helm labels | ⏳ [#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25) |

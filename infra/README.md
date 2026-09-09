@@ -111,13 +111,69 @@ to the ledger queue, `ledger` can consume it, and all three can
 `cloudwatch:PutMetricData` under a `cloudwatch:namespace = Nordwind/Bank`
 condition (that action accepts no resource ARN).
 
+## What `infra/azure` deploys
+
+The Azure half of the bank estate (M5): one Function app pretending to be
+customer-notifications, Azure Monitor rules that turn its faults into
+alerts, and the always-on alert forwarder those rules (and, from M6, an
+Alertmanager route B) call into.
+
+- **Storage** (`storage.tf`): one `Standard`/`LRS` storage account
+  (`nordwindtriage<random 6>`, TLS 1.2 minimum, no public blob access),
+  shared by both Function apps' control-plane data (triggers, locks,
+  `WEBSITE_RUN_FROM_PACKAGE`). Y1 (Consumption) Function apps authenticate
+  to it with an account key - there is no managed-identity path for that
+  connection on this plan, so `shared_access_key_enabled` stays `true`
+  (documented again as a checkov skip in `.checkov.yaml`).
+- **Observability** (`functions.tf`): a Log Analytics workspace
+  (`PerGB2018`, 30-day retention, `daily_quota_gb = 0.2` so verbose logging
+  can't run away with the bill) and a workspace-based Application Insights
+  component with `sampling_percentage = 20`.
+- **Compute** (`functions.tf`): one Linux Consumption (`Y1`) service plan
+  and two `azurerm_linux_function_app`s (Python 3.12, system-assigned
+  identity, `https_only`), `nordwind-triage-demo-notifications` and
+  `nordwind-triage-demo-forwarder`. Each deploys standalone from a
+  `zip_deploy_file` built by `data.archive_file.functions` from its own
+  `bank/azure/<app>/` directory plus `bank/azure/_shared/` copied in as a
+  sibling folder at the zip root (see `bank/azure/README.md`'s
+  "sibling-import trick"); `WEBSITE_RUN_FROM_PACKAGE = "1"` and
+  `SCM_DO_BUILD_DURING_DEPLOYMENT = "true"` make Oryx install each app's
+  `requirements.txt` on deploy. **The first deploy takes ~3 minutes to
+  warm** (Oryx build + cold start) before the timer trigger starts firing.
+- **Alerting** (`alerts.tf`): an action group (`nordwind-triage-demo-alerts`,
+  short name `nwtriage`) with a webhook receiver pointing at the
+  forwarder's function URL - including its default function key, read back
+  with `data.azurerm_function_app_host_keys` since the forwarder's HTTP
+  trigger is function-key authed and the action group has no other way to
+  authenticate. Three rules fire into it: a metric alert on
+  `exceptions/count` from the Application Insights component (timer
+  failures surface as exceptions - `Http5xx` on the site would miss a
+  timer trigger entirely), and two log alerts (`scheduled_query_rules_alert_v2`,
+  KQL over the Log Analytics workspace) on the `provider_429` and
+  `notifications_backlog` custom metrics.
+
+### Why app settings are plaintext (v1)
+
+Same trade-off as the AWS Lambdas' environment variables: `CONSOLE_TOKEN`
+and `INGEST_HMAC_SECRET` land in each Function app's configuration as
+ordinary (non-Key-Vault-backed) app settings, visible in plaintext to
+anyone with Contributor access on the resource group. `infra/azure` never
+talks to AWS itself (M1), so it can't read the two SSM parameters that hold
+the real values back on its own - `deploy.yml`'s `plan`/`apply` steps read
+them with the AWS role (same commands as the `smoke` job) and pass them in
+as `-var="console_token=..." -var="ingest_hmac_secret=..."`, masked with
+`::add-mask::` before they ever reach a log line. Key Vault references are
+the M9 hardening upgrade.
+
 ## Chaos cookbook
 
-Each command below fires a fault that drives one of the six alarms in
-`alarms.tf` into `ALARM`, which publishes to the same SNS topic `ingest`
-subscribes to - expect a verdict on the console within **~3-5 min** (the
-EventBridge schedule / SQS delivery + the alarm's evaluation period + one
-triage-worker invocation):
+Each command below fires a fault that drives one of the six AWS alarms in
+`alarms.tf` into `ALARM` (published to the same SNS topic `ingest`
+subscribes to) or one of the three Azure Monitor rules in `alerts.tf` -
+expect a verdict on the console within **~3-5 min** on AWS (EventBridge
+schedule / SQS delivery + the alarm's evaluation period + one
+triage-worker invocation) or **~5-7 min** on Azure (Azure Monitor evaluates
+every minute over a 5-minute window, one step slower than CloudWatch):
 
 ```bash
 # payments 5xx burst -> nordwind-triage-demo-payments-Errors-Sev2
@@ -128,6 +184,12 @@ python -m cli.bankops chaos ledger --mode lag --minutes 5
 
 # auth JWKS rotation gone wrong -> nordwind-triage-demo-auth-AuthFailures-Sev2
 python -m cli.bankops chaos auth --mode jwks-rotation --minutes 5
+
+# SMS/e-mail provider 429s -> nordwind-triage-demo-customer-notifications-Provider429-Sev2
+python -m cli.bankops chaos customer-notifications --mode provider-429 --minutes 5
+
+# notifications backlog grows -> nordwind-triage-demo-customer-notifications-Backlog-Sev3
+python -m cli.bankops chaos customer-notifications --mode backlog --minutes 5
 ```
 
 `python -m cli.bankops chaos --status` prints every active fault and the
@@ -141,11 +203,15 @@ never cleared explicitly, since `current_fault()` only returns a mode while
 `scripts/chaos_probe.py` runs the same experiment unattended: set a fault,
 wait for the estate's own alarm to arrive at the spine, wait for the
 verdict, clear the fault, fail if the verdict came from a stub or (with
-`--expect-known`) did not match the taught known issue. The deploy
-workflow exposes it as the `chaos_probe` dispatch input:
+`--expect-known`) did not match the taught known issue. `--timeout`
+overrides the default 10-minute wait - the deploy workflow's
+`notifications-429` option raises it to 12 minutes for Azure Monitor's
+slower evaluation. The deploy workflow exposes it as the `chaos_probe`
+dispatch input:
 
 ```bash
 gh workflow run deploy.yml -f root=aws -f chaos_probe=payments-pool
+gh workflow run deploy.yml -f root=azure -f chaos_probe=notifications-429
 ```
 
 The smoke job then prints `OK: alert_id=... alert=...-payments-PoolExhausted-Sev3 source=cloudwatch known=True action=ack model=...`.
@@ -382,3 +448,55 @@ review and only on pushes to the default branch or `workflow_dispatch`
 mean two separate approval prompts per run for no additional safety (the
 registry and the image are inert until a Lambda points at them, which
 `apply` still gates).
+
+## Decisions taken while shipping the Azure Functions estate (M5b)
+
+Notes on places where `docs/specs/m5b-azure-terraform.md` left a choice
+open.
+
+### `c4_container` tags on shared Functions plumbing
+
+The spec's tag enum for this root is exactly three values -
+`notifications` / `forwarder` / `monitor` - but four of the new resources
+(the storage account, the service plan, the Log Analytics workspace, the
+Application Insights component) back *both* Function apps and don't map
+to a single container the way a Lambda maps to its log group on the AWS
+side. All four get `monitor`: Log Analytics and Application Insights
+literally feed the alert rules (already named `monitor` in
+`docs/c4/workspace.dsl`), and the storage account / service plan are
+generic hosting plumbing with no more claim to `notifications` than to
+`forwarder`. The two Function apps themselves get their own specific tag.
+
+### Metric namespace for the `exceptions/count` alert
+
+`azurerm_monitor_metric_alert.criteria.metric_namespace` is a required
+field the spec doesn't name. Application Insights components publish
+their metrics (including `exceptions/count`) under the namespace
+`microsoft.insights/components` - the value every Azure Monitor example
+for this metric uses; there's no alternative namespace to choose from for
+this metric on this resource type.
+
+### `archive_file` merging two source directories
+
+`archive_file` has no attribute for zipping two separate directories into
+one archive with one nested as a subfolder (unlike a single `source_dir`,
+which zips one directory as-is). Each app's zip is instead built from a
+map of `zip path -> local file path` assembled with `fileset()` over the
+app's own directory and `bank/azure/_shared/` (filtered to drop
+`__pycache__`/`.pyc`), fed to a `dynamic "source"` block - functionally
+identical to "package `bank/azure/<app>/` plus `bank/azure/_shared/` at
+the zip root" (requirement 1), just built by hand since Terraform has no
+built-in "merge two directories" primitive.
+
+### Where the SSM read for `infra/azure` lives in `deploy.yml`
+
+Requirement 3 says the `plan`/`apply` steps "first read the two SSM
+parameters ... and pass" them as `-var` flags - read literally, that's a
+step *before* `terraform plan`/`apply`. Doing it as a separate step would
+mean carrying the two secret values through `GITHUB_OUTPUT` into the next
+step, which GitHub's own docs warn against (an output's value is not
+masked at rest, only in log lines after `::add-mask::` - a real risk on
+this public repo). Instead the read happens at the *top* of the same
+`terraform plan` / `terraform apply` step, in the same shell process, so
+the secrets never leave a masked, single-step scope; "first" is satisfied
+in execution order, not job-step order.
