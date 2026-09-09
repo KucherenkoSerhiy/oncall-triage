@@ -1,2 +1,2 @@
-google-adk>=2.6.3
+google-adk>=2.8.0
 pytest>=9.1.1
