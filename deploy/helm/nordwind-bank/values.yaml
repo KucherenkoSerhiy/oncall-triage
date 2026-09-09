@@ -1,0 +1,29 @@
+# Default values for nordwind-bank. See README.md for the values table.
+
+# Tag applied to nordwind/<service> images (kind load doesn't need a
+# registry; imagePullPolicy below is IfNotPresent so that works).
+imageTag: latest
+
+forwarder:
+  # Azure alert-forwarder function URL (bank/azure/alert_forwarder), used
+  # only by deploy/helm/values/kube-prometheus-stack.yaml's Alertmanager
+  # receiver (this chart doesn't read it directly). Kept here so `helm
+  # template --set forwarder.url=...` is one flag for the whole estate.
+  url: ""
+
+# Kafka producer/consumer hooks are M7; every service accepts this value
+# today and no-ops on it.
+kafka:
+  enabled: false
+
+monitoring:
+  # kube-prometheus-stack's Helm release name. Stamped as the `release`
+  # label on ServiceMonitor/PrometheusRule objects - see README.md for why
+  # that's a belt-and-suspenders label alongside the open selectors set in
+  # deploy/helm/values/kube-prometheus-stack.yaml.
+  release: monitoring
+
+services:
+  - name: cards-authorization
+  - name: fraud-scoring
+  - name: open-banking-api

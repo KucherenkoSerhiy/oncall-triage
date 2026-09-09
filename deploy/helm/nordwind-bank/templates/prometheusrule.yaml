@@ -1,0 +1,63 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: nordwind-bank
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+    release: {{ .Values.monitoring.release }}
+spec:
+  groups:
+    - name: nordwind-bank.rules
+      rules:
+        - alert: CardsAuthHighLatency
+          expr: histogram_quantile(0.99, sum(rate(cards_auth_request_seconds_bucket[2m])) by (le)) > 1
+          for: 2m
+          labels:
+            service: cards-authorization
+            severity: high
+          annotations:
+            summary: cards-authorization p99 latency is above 1s
+            description: The 99th percentile of cards_auth_request_seconds over the last 2 minutes has been above 1s for at least 2 minutes.
+        - alert: CardsAuthErrorRatio
+          expr: sum(rate(cards_auth_requests_total{result="error"}[2m])) / sum(rate(cards_auth_requests_total[2m])) > 0.5
+          for: 2m
+          labels:
+            service: cards-authorization
+            severity: critical
+          annotations:
+            summary: cards-authorization error ratio is above 50%
+            description: More than half of cards_auth_requests_total over the last 2 minutes have result="error", sustained for at least 2 minutes.
+        - alert: FraudScoreDrift
+          expr: sum(rate(fraud_score_bucket_sum[3m])) / sum(rate(fraud_score_bucket_count[3m])) > 0.6
+          for: 3m
+          labels:
+            service: fraud-scoring
+            severity: high
+          annotations:
+            summary: fraud-scoring mean score has drifted above 0.6
+            description: The mean fraud_score_bucket observation over the last 3 minutes has been above 0.6 for at least 3 minutes, suggesting model drift.
+        - alert: FraudScoringCrashLoop
+          expr: increase(kube_pod_container_status_restarts_total{container="fraud-scoring"}[10m]) > 2
+          labels:
+            service: fraud-scoring
+            severity: high
+          annotations:
+            summary: fraud-scoring container is crash-looping
+            description: The fraud-scoring container has restarted more than 2 times in the last 10 minutes.
+        - alert: OpenBankingRateLimitStorm
+          expr: sum(rate(openbanking_responses_total{code="429"}[2m])) / sum(rate(openbanking_responses_total[2m])) > 0.5
+          for: 2m
+          labels:
+            service: open-banking-api
+            severity: warning
+          annotations:
+            summary: open-banking-api is mostly answering 429
+            description: More than half of openbanking_responses_total over the last 2 minutes are code="429", sustained for at least 2 minutes.
+        - alert: OpenBankingCertExpiringSoon
+          expr: openbanking_cert_expiry_seconds - time() < 14 * 24 * 3600
+          labels:
+            service: open-banking-api
+            severity: warning
+          annotations:
+            summary: open-banking-api TLS certificate is expiring soon
+            description: openbanking_cert_expiry_seconds is less than 14 days away from now.

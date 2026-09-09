@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nordwind-faults
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+data:
+  cards-authorization: ""
+  fraud-scoring: ""
+  open-banking-api: ""
