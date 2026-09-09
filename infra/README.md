@@ -136,6 +136,21 @@ one early. Faults also self-clear after `--minutes` (default 5) even if
 never cleared explicitly, since `current_fault()` only returns a mode while
 `until` is in the future.
 
+### Proving it without a laptop
+
+`scripts/chaos_probe.py` runs the same experiment unattended: set a fault,
+wait for the estate's own alarm to arrive at the spine, wait for the
+verdict, clear the fault, fail if the verdict came from a stub or (with
+`--expect-known`) did not match the taught known issue. The deploy
+workflow exposes it as the `chaos_probe` dispatch input:
+
+```bash
+gh workflow run deploy.yml -f root=aws -f chaos_probe=payments-pool
+```
+
+The smoke job then prints `OK: alert_id=... alert=...-payments-PoolExhausted-Sev3 source=cloudwatch known=True action=ack model=...`.
+Every milestone's live probe from M4 on is recorded this way.
+
 ## Anthropic API key
 
 The triage worker reads its Claude API key from
