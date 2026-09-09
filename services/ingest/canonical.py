@@ -8,9 +8,12 @@ a source-specific webhook/event payload into one (or more) of these.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
+from typing import Any
 
 _SOURCES = {"cloudwatch", "azure-monitor", "alertmanager", "bankops"}
 _ESTATES = {"aws", "azure", "kubernetes"}
@@ -31,6 +34,19 @@ def new_alert_id() -> str:
         chars.append(_ULID_ALPHABET[value & 0x1F])
         value >>= 5
     return "".join(reversed(chars))
+
+
+def dynamodb_safe(value: Any) -> Any:
+    """Return ``value`` with every float turned into a ``Decimal``.
+
+    boto3's DynamoDB serializer refuses Python floats ("Float types are not
+    supported. Use Decimal types instead"). Producer payloads kept under
+    ``raw`` are arbitrary JSON - CloudWatch alarm messages carry
+    ``Trigger.Threshold: 1.0`` and friends - and the first real alarm in M4
+    crashed ingest on exactly that (#50). A JSON round-trip with
+    ``parse_float=Decimal`` is the smallest faithful conversion; it also
+    normalises tuples and other JSON-compatible containers to lists/dicts."""
+    return json.loads(json.dumps(value), parse_float=Decimal)
 
 
 def compute_fingerprint(source: str, service: str, alert_name: str, labels: dict[str, str]) -> str:
@@ -91,7 +107,7 @@ class CanonicalAlert:
             "labels": dict(self.labels),
             "fired_at": self.fired_at,
             "received_at": self.received_at,
-            "raw": self.raw,
+            "raw": dynamodb_safe(self.raw),
         }
 
     @classmethod

@@ -156,3 +156,30 @@ def test_dedup_bump_then_expiry_creates_new_alert(moto_infra, monkeypatch):
     assert result_3["alert_id"] != alert_1.alert_id
 
     assert _queue_message_count(moto_infra["queue_url"], moto_infra["region"]) == 2
+
+
+def test_sns_path_stores_alarm_payloads_with_floats(moto_infra):
+    # Regression for #50: a real CloudWatch alarm message carries floats
+    # (Trigger.Threshold: 1.0 ...) inside the raw payload; boto3 refuses
+    # floats, so the first live M4 alarm crashed ingest at put_new.
+    message = _load("cloudwatch")
+    message["Trigger"] = {
+        "MetricName": "PoolExhausted",
+        "Namespace": "Nordwind/Bank",
+        "Statistic": "SUM",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1.0,
+        "Dimensions": [{"name": "service", "value": "payments"}],
+    }
+    message["NewStateValue"] = "ALARM"
+
+    result = handler.lambda_handler(_sns_event(message), None)
+
+    assert len(result["results"]) == 1
+    table = boto3.resource("dynamodb", region_name=moto_infra["region"]).Table(
+        moto_infra["table_name"]
+    )
+    item = table.get_item(Key={"alert_id": result["results"][0]["alert_id"]})["Item"]
+    assert item["raw"]["Trigger"]["Threshold"] == 1
+    assert item["status"] == "queued"
