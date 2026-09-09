@@ -11,8 +11,12 @@ resource "aws_sqs_queue" "alerts_dlq" {
 }
 
 resource "aws_sqs_queue" "alerts" {
-  name                       = "${local.name_prefix}-alerts"
-  visibility_timeout_seconds = 90
+  name = "${local.name_prefix}-alerts"
+  # >= 6x the triage-worker timeout (120 s, lambdas.tf), per the Lambda/SQS
+  # guidance: a slow verdict must not be redelivered while still in flight
+  # (#39). Redelivery of a genuinely failed batch item therefore waits up to
+  # 12 min, which the console shows as "queued" - acceptable for triage.
+  visibility_timeout_seconds = 720
   sqs_managed_sse_enabled    = true
 
   redrive_policy = jsonencode({
