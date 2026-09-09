@@ -10,7 +10,7 @@ We want a realistic multi-cloud bank scenario: SRE tooling in one place, workloa
 
 ## Decision
 
-The triage brain (ingest, queue, worker, store, console) runs on AWS eu-central-1 only. Three bank estates feed it: AWS serverless (Lambda + CloudWatch), Azure serverless (Functions + Azure Monitor) and a Kubernetes estate (Prometheus + Alertmanager + Kafka).
+The triage brain (ingest, queue, worker, store, console) runs on AWS eu-north-1 only. Three bank estates feed it: AWS serverless (Lambda + CloudWatch), Azure serverless (Functions + Azure Monitor) and a Kubernetes estate (Prometheus + Alertmanager + Kafka).
 
 ## Consequences
 

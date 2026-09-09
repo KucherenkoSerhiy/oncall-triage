@@ -1,7 +1,7 @@
 variable "region" {
-  description = "AWS region for every regional resource."
+  description = "AWS region for every regional resource (Stockholm: inside the account's managed region floor)."
   type        = string
-  default     = "eu-central-1"
+  default     = "eu-north-1"
 }
 
 variable "project" {

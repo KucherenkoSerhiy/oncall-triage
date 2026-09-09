@@ -7,7 +7,7 @@ audiences:
 |---|---|---|---|
 | `bootstrap/aws` | a human, once | local file, then never touched | Terraform state bucket, GitHub OIDC provider, the deploy role `deploy.yml` assumes |
 | `bootstrap/azure` | a human, once | local file | resource group, app registration + federated credentials for GitHub, role assignment scoped to the resource group |
-| `aws` | `deploy.yml` (plan on PR, apply on merge) | `s3://<bucket>/aws/terraform.tfstate` | the triage brain, the AWS bank estate, DNS zone, budget, dashboard |
+| `aws` | `deploy.yml` (plan on PR, apply on merge) | `s3://<bucket>/aws/terraform.tfstate` (bucket in eu-north-1) | the triage brain, the AWS bank estate, DNS zone, budget, dashboard |
 | `azure` | `deploy.yml` | `s3://<bucket>/azure/terraform.tfstate` | the Azure bank estate, alert forwarder, Azure Monitor rules, budget |
 
 The bootstrap modules are the only place a human credential is ever used;

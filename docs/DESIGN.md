@@ -71,7 +71,7 @@ the deployed resources. Cloud spend target **≤ $10 / month**, modelled at
 | D2 | IaC | **Terraform** for cloud resources, **Helm** for in-cluster software | One language per layer, both industry defaults |
 | D3 | Delivery surface | **Incident console** static web page | Demo surface with zero moving parts; Slack / Teams / e-mail are v2 adapters |
 | D4 | Model | **Claude Haiku 4.5 via ADK's LiteLLM adapter** | Quality over free-tier 503 roulette; ≈ $2–3/month at demo volume, billed outside the $10 |
-| D5 | Regions | AWS `eu-central-1`, Azure `westeurope` | EU bank narrative (data residency); both carry every service we use |
+| D5 | Regions | AWS **`eu-north-1` (Stockholm)**, Azure `westeurope` | EU bank narrative (data residency); both carry every service we use. Stockholm rather than Frankfurt because the AWS account (new sign-up experience) ships with an AWS-managed *region floor* SCP that allows eu-north-1 + global services — we keep that guardrail instead of editing it (ADR 0005, 0014) |
 | D6 | Kubernetes + Kafka | **Included** — a Prometheus/Alertmanager-monitored estate with Strimzi Kafka as event backbone and alert transport | "Used everywhere"; a triage system that never saw an Alertmanager webhook or a consumer-lag alert isn't credible in a bank |
 | D7 | Where Kubernetes runs | **kind**: laptop for development, **GitHub Actions** for the repeatable demo; AKS kept as a documented v2 option (same charts) | Kubernetes is free; the VM under a cloud cluster is what costs money. Trade: AWS cannot reach the in-cluster Kafka, so the cross-cloud hop out of Kafka is a relay pod (route A) — see §4.4 |
 | D8 | Delivery | Trunk-based, PR-only, **plan on PR → approve → apply on merge**, OIDC to both clouds, images by git SHA | The pipeline is part of the product: it's how a bank would run this, and it's the part most job descriptions actually test |
@@ -135,7 +135,7 @@ C4Container
   Person(oncall, "On-call engineer")
   Person(operator, "Chaos operator")
 
-  Container_Boundary(aws, "AWS eu-central-1 — triage brain") {
+  Container_Boundary(aws, "AWS eu-north-1 — triage brain") {
     Container(ingest, "ingest", "Lambda (Python)", "HMAC-verifies webhooks, normalises to the canonical alert, scrubs PII, dedups by fingerprint, enqueues")
     ContainerQueue(queue, "alerts queue", "SQS + DLQ", "Decouples ingestion from LLM latency; DLQ for poison alerts")
     Container(worker, "triage worker", "Lambda container image (Python, ADK)", "Runs the 3-role ADK workflow per alert; writes verdicts")
@@ -259,7 +259,7 @@ flowchart LR
   end
   FWD["alert forwarder<br/>Azure Function"]
   AM -->|"route B: KafkaBrokerDown,<br/>KafkaRelayLag, or A failing"| FWD
-  subgraph AWSB["AWS eu-central-1 — brain"]
+  subgraph AWSB["AWS eu-north-1 — brain"]
     IN["ingest"]
   end
   RL -->|HTTPS + HMAC| IN
@@ -276,7 +276,7 @@ flowchart LR
     DEMO["estate-demo.yml — kind cluster + Helm + chaos scenarios<br/>+ assertions against the console API (manual / nightly)"]
     C4["c4.yml — Structurizr export → docs/c4/generated/"]
   end
-  subgraph AWS["AWS eu-central-1"]
+  subgraph AWS["AWS eu-north-1"]
     TFS[("S3 tf-state, versioned")]
     BRAIN["triage brain<br/>ingest · SQS · worker (ECR image by git SHA) · DynamoDB · API · S3/CloudFront · dashboard"]
     SVCA["payments · ledger · auth<br/>+ CloudWatch alarms → SNS"]
@@ -417,7 +417,7 @@ about itself, which is both a good demo and how you find out it's broken.
   "title": "payments 5xx rate above 5% for 5 min",
   "description": "free text from the source",
   "sample_logs": ["ERROR ... connection pool exhausted ..."],
-  "labels": { "env": "demo", "region": "eu-central-1", "runbook": "RB-PAY-004", "route": "A" },
+  "labels": { "env": "demo", "region": "eu-north-1", "runbook": "RB-PAY-004", "route": "A" },
   "fired_at": "RFC3339",
   "received_at": "RFC3339",
   "raw": { "...source payload, PAN/IBAN-scrubbed..." }

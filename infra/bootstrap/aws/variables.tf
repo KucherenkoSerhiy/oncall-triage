@@ -1,7 +1,7 @@
 variable "region" {
-  description = "Home region for the state bucket and the deploy role."
+  description = "Home region for the state bucket and the deploy role (the account's managed region floor allows eu-north-1 plus global services)."
   type        = string
-  default     = "eu-central-1"
+  default     = "eu-north-1"
 }
 
 variable "project" {
@@ -25,5 +25,5 @@ variable "github_repository" {
 variable "state_bucket_name" {
   description = "Globally unique name for the Terraform state bucket."
   type        = string
-  default     = "nordwind-triage-tfstate-eu-central-1"
+  default     = "nordwind-triage-tfstate-eu-north-1"
 }

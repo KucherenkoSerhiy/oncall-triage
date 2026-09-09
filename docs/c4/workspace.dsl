@@ -138,7 +138,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                     containerInstance k8sEstate.relay
                 }
             }
-            deploymentNode "AWS" "eu-central-1" "Terraform: infra/aws" {
+            deploymentNode "AWS" "eu-north-1" "Terraform: infra/aws" {
                 deploymentNode "Lambda" "" "AWS Lambda" {
                     containerInstance triage.ingest
                     containerInstance triage.worker
