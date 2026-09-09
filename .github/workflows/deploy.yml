@@ -34,11 +34,11 @@ defaults:
   run:
     shell: bash
 
-# One queue for every deploy run, whatever the ref: PR plans and master
-# applies share the same Terraform state, and two runs racing for the lock
-# fail one of them. Bootstrap roots are human-applied and never trigger this.
+# Per-ref concurrency so a run parked at the demo approval never blocks PR
+# plans; runs on different refs share the Terraform state, so plan and apply
+# wait for the state lock (-lock-timeout) instead of failing on contention.
 concurrency:
-  group: deploy-shared-state
+  group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -102,7 +102,7 @@ jobs:
           -backend-config="region=${{ env.AWS_REGION }}"
       - name: terraform plan
         run: |
-          terraform -chdir=infra/${{ matrix.root }} plan -no-color -out=tfplan \
+          terraform -chdir=infra/${{ matrix.root }} plan -no-color -out=tfplan -lock-timeout=5m \
             -var="notification_email=${{ secrets.BUDGET_EMAIL }}" \
             ${{ inputs.worker_image_sha && format('-var="worker_image_sha={0}"', inputs.worker_image_sha) || '' }} \
             | tee plan.txt
@@ -163,7 +163,7 @@ jobs:
           terraform -chdir=infra/${{ matrix.root }} init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="region=${{ env.AWS_REGION }}"
-          terraform -chdir=infra/${{ matrix.root }} apply -auto-approve \
+          terraform -chdir=infra/${{ matrix.root }} apply -auto-approve -lock-timeout=5m \
             -var="notification_email=${{ secrets.BUDGET_EMAIL }}" \
             ${{ inputs.worker_image_sha && format('-var="worker_image_sha={0}"', inputs.worker_image_sha) || '' }}
 
