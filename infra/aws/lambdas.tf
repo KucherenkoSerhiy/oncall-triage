@@ -99,7 +99,7 @@ data "aws_iam_policy_document" "ingest_assume" {
 resource "aws_iam_role" "ingest" {
   name                 = "${var.project}-${var.environment}-ingest"
   assume_role_policy   = data.aws_iam_policy_document.ingest_assume.json
-  permissions_boundary = data.aws_iam_policy.workload_boundary.arn
+  permissions_boundary = local.workload_boundary_arn
 
   tags = local.tags.ingest
 }
@@ -175,7 +175,7 @@ data "aws_iam_policy_document" "console_api_assume" {
 resource "aws_iam_role" "console_api" {
   name                 = "${var.project}-${var.environment}-console-api"
   assume_role_policy   = data.aws_iam_policy_document.console_api_assume.json
-  permissions_boundary = data.aws_iam_policy.workload_boundary.arn
+  permissions_boundary = local.workload_boundary_arn
 
   tags = local.tags.api
 }
@@ -257,7 +257,7 @@ data "aws_iam_policy_document" "triage_worker_assume" {
 resource "aws_iam_role" "triage_worker" {
   name                 = "${var.project}-${var.environment}-triage-worker"
   assume_role_policy   = data.aws_iam_policy_document.triage_worker_assume.json
-  permissions_boundary = data.aws_iam_policy.workload_boundary.arn
+  permissions_boundary = local.workload_boundary_arn
 
   tags = local.tags.worker
 }
