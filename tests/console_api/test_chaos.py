@@ -53,6 +53,37 @@ def test_set_chaos_writes_item_and_returns_201(moto_infra):
     assert faults[0]["active"] is True
 
 
+def test_set_chaos_accepts_provider_429_for_customer_notifications(moto_infra):
+    result = handler.lambda_handler(
+        _event(
+            "POST",
+            "/chaos/customer-notifications",
+            headers=_auth_headers(),
+            body=json.dumps({"mode": "provider-429", "minutes": 5}),
+        ),
+        None,
+    )
+
+    assert result["statusCode"] == 201
+    record = json.loads(result["body"])
+    assert record["service"] == "customer-notifications"
+    assert record["mode"] == "provider-429"
+
+
+def test_set_chaos_rejects_unknown_mode_for_customer_notifications(moto_infra):
+    result = handler.lambda_handler(
+        _event(
+            "POST",
+            "/chaos/customer-notifications",
+            headers=_auth_headers(),
+            body=json.dumps({"mode": "not-a-real-mode", "minutes": 5}),
+        ),
+        None,
+    )
+
+    assert result["statusCode"] == 400
+
+
 def test_set_chaos_unknown_service_is_404(moto_infra):
     result = handler.lambda_handler(
         _event(

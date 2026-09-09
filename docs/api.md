@@ -72,9 +72,10 @@ Request: `{"service": "payments-api", "pattern": "connection pool exhausted", "e
 ## `POST /chaos/{service}`
 
 Request: `{"mode": "errors", "minutes": 5}`. `service` is one of `payments`,
-`ledger`, `auth`; valid modes: `payments` -> `errors`, `latency`, `pool`;
-`ledger` -> `lag`, `reconciliation-mismatch`; `auth` -> `jwks-rotation`,
-`lockouts`.
+`ledger`, `auth`, `customer-notifications`; valid modes: `payments` ->
+`errors`, `latency`, `pool`; `ledger` -> `lag`, `reconciliation-mismatch`;
+`auth` -> `jwks-rotation`, `lockouts`; `customer-notifications` ->
+`provider-429`, `backlog`.
 
 ```
 201 {"service": "payments", "mode": "errors", "until": 1234567890, "set_at": 1234567590, "set_by": "console"}

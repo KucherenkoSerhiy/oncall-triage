@@ -18,6 +18,10 @@ VALID_MODES: dict[str, tuple[str, ...]] = {
     "payments": ("errors", "latency", "pool"),
     "ledger": ("lag", "reconciliation-mismatch"),
     "auth": ("jwks-rotation", "lockouts"),
+    # Azure (bank/azure/customer_notifications) - not an AWS Lambda, but this
+    # dict is the single source of truth the console API and bankops chaos
+    # validate against, so it lists every bank service regardless of estate.
+    "customer-notifications": ("provider-429", "backlog"),
 }
 
 
