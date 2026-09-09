@@ -63,6 +63,23 @@ aws ssm get-parameter --with-decryption --name /nordwind-triage/demo/ingest-hmac
 aws ssm get-parameter --with-decryption --name /nordwind-triage/demo/console-token --query Parameter.Value --output text
 ```
 
+## One-time account prerequisites (outside Terraform)
+
+Some AWS services create a *service-linked role* the first time they are
+used in an account. Creating one needs `iam:CreateServiceLinkedRole`, which
+the deploy role deliberately does not hold, so these are created once by a
+human session (CloudShell in the console is enough - no key involved):
+
+```bash
+# API Gateway custom domain names (used by infra/aws api.tf)
+aws iam create-service-linked-role --aws-service-name ops.apigateway.amazonaws.com
+```
+
+Symptom when missing: `apply - aws` fails on `aws_apigatewayv2_domain_name`
+with "Caller does not have permissions to create a Service Linked Role".
+Re-running the deploy after the command succeeds continues from the saved
+state.
+
 ## Conventions
 
 - Provider default tags on every resource: `project`, `env`, `owner`,
