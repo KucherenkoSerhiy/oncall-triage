@@ -22,6 +22,12 @@ variable "domain" {
   default     = "triage.serhiykucherenko.dev"
 }
 
+variable "parent_domain" {
+  description = "Parent zone, hosted on Cloudflare, that delegates `var.domain` to Route 53."
+  type        = string
+  default     = "serhiykucherenko.dev"
+}
+
 variable "notification_email" {
   description = "Recipient of budget alerts."
   type        = string

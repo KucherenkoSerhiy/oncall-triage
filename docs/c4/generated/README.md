@@ -365,6 +365,13 @@ graph LR
       style 205 fill:#8fa1b0,stroke:#64707b,color:#ffffff
     end
 
+    subgraph 207 ["Cloudflare"]
+      style 207 fill:#ffffff,stroke:#444444,color:#444444
+
+      208["<div style='font-weight: bold'>NS delegation</div><div style='font-size: 70%; margin-top: 0px'>[Infrastructure Node]</div>"]
+      style 208 fill:#ffffff,stroke:#444444,color:#444444
+    end
+
     103-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->106
     104-. "<div>consume card.authorized,<br />produce fraud.scored</div><div style='font-size: 70%'></div>" .->106
     105-. "<div>consume fraud.scored</div><div style='font-size: 70%'></div>" .->106

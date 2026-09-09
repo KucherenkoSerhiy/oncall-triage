@@ -49,6 +49,9 @@ env:
   ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  # Cloudflare provider (infra/aws, NS delegation of triage.*): API token
+  # scoped to Zone:Read + DNS:Edit on the parent zone only.
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
 jobs:
   # Until infra/bootstrap has been applied and its outputs stored as
