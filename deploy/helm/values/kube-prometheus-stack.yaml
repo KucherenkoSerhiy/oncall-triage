@@ -1,0 +1,47 @@
+# Values for the upstream `prometheus-community/kube-prometheus-stack`
+# chart. Pinned version: 65.5.1 (also pinned in M6b's Taskfile `estate-up`
+# task, which runs `helm repo add prometheus-community
+# https://prometheus-community.github.io/helm-charts` then
+# `helm upgrade --install ... --version 65.5.1 -f deploy/helm/values/kube-prometheus-stack.yaml`).
+#
+# Grafana is disabled (out of scope for M6, see docs/specs/m6-kind-estate.md
+# non-requirements); Alertmanager is enabled and routes every alert to
+# route-b-forwarder, the same bank/azure/alert_forwarder Alertmanager
+# webhook Route B already accepts from an Azure Monitor action group.
+#
+# Upstream values can't read this repo's own `nordwind-bank` chart values,
+# so the forwarder URL below is the placeholder `__FORWARDER_URL__`.
+# `scripts/render_alertmanager_values.py` substitutes it for the real
+# bank/azure/alert_forwarder function URL before `helm upgrade` (M6b's
+# `task estate-up`); with no URL supplied it substitutes a dummy local
+# address instead, so this file renders as valid YAML - and `helm lint`
+# passes on the `nordwind-bank` chart - even before a forwarder exists.
+
+grafana:
+  enabled: false
+
+alertmanager:
+  enabled: true
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: route-b-forwarder
+      group_wait: 10s
+      group_interval: 30s
+      repeat_interval: 1h
+    receivers:
+      - name: route-b-forwarder
+        webhook_configs:
+          - url: "__FORWARDER_URL__"
+            send_resolved: true
+
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 15s
+    # Opens the rule/ServiceMonitor selectors so kube-prometheus-stack
+    # picks up nordwind-bank's PrometheusRule and ServiceMonitors
+    # regardless of namespace or the `release: monitoring` label - see
+    # deploy/helm/nordwind-bank/README.md for why that label is kept too.
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false

@@ -62,6 +62,39 @@ jobs:
           output_format: cli
           soft_fail: false
 
+  helm:
+    name: helm - lint, kubeconform, trivy config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: "v3.17.1"
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /usr/local/bin kubeconform
+      - name: Install trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+        with:
+          version: v0.74.0
+          cache: true
+      - name: helm template | kubeconform -strict (default values)
+        run: |
+          helm template deploy/helm/nordwind-bank | kubeconform -strict -summary -kubernetes-version 1.31.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+      - name: helm template | kubeconform -strict (forwarder.url set)
+        run: |
+          helm template deploy/helm/nordwind-bank --set forwarder.url=https://example/x | kubeconform -strict -summary -kubernetes-version 1.31.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+      - name: Trivy config scan of the rendered manifests
+        run: |
+          mkdir -p /tmp/rendered
+          helm template deploy/helm/nordwind-bank --set forwarder.url=https://example/x > /tmp/rendered/nordwind-bank.yaml
+          trivy config --exit-code 1 --severity HIGH,CRITICAL /tmp/rendered
+
   c4:
     name: c4 - model validates and generated diagrams are current
     runs-on: ubuntu-latest

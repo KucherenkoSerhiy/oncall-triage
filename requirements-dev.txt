@@ -6,3 +6,4 @@ pre-commit>=4.6.2
 moto[dynamodb,sqs]>=5.2.3
 boto3-stubs[dynamodb,sqs]
 azure-functions
+pyyaml>=6

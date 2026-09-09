@@ -5,6 +5,10 @@ version: "3"
 vars:
   TF_ROOTS: infra/bootstrap/aws infra/bootstrap/azure infra/aws-ecr infra/aws infra/azure
   C4_DIR: docs/c4
+  # kubeconform's CRD schema-location pattern for ServiceMonitor/PrometheusRule
+  # (not a Task template var - kubeconform expands it itself at runtime, so
+  # the braces are escaped to survive Task's own templating).
+  KUBECONFORM_CRD_SCHEMA: 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{"{{"}}.Group{{"}}"}}/{{"{{"}}.ResourceKind{{"}}"}}_{{"{{"}}.ResourceAPIVersion{{"}}"}}.json'
 
 tasks:
   default:
@@ -69,6 +73,21 @@ tasks:
     deps: [c4]
     cmds:
       - git diff --exit-code -- {{.C4_DIR}}/generated
+
+  helm-lint:
+    desc: helm lint the nordwind-bank chart (what ci.yml's helm job runs first)
+    cmds:
+      - helm lint deploy/helm/nordwind-bank
+
+  helm-check:
+    desc: helm template the nordwind-bank chart (default values and with a forwarder URL) through kubeconform -strict
+    cmds:
+      - helm template deploy/helm/nordwind-bank | kubeconform -strict -summary -kubernetes-version 1.31.0
+        -schema-location default
+        -schema-location '{{.KUBECONFORM_CRD_SCHEMA}}'
+      - helm template deploy/helm/nordwind-bank --set forwarder.url=https://example/x | kubeconform -strict -summary -kubernetes-version 1.31.0
+        -schema-location default
+        -schema-location '{{.KUBECONFORM_CRD_SCHEMA}}'
 
   agent:
     desc: Run the ADK dev UI for the triage agent (phase-1 experience)

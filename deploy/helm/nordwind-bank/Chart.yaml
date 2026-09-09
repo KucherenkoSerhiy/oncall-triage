@@ -1,0 +1,6 @@
+apiVersion: v2
+name: nordwind-bank
+description: Nordwind Bank's Kubernetes estate - cards-authorization, fraud-scoring, open-banking-api
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

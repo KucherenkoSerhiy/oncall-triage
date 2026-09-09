@@ -25,7 +25,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["oncall_triage", "services.ingest", "services.console_api", "services.triage_worker", "cli.bankops", "scripts", "bank.aws", "bank.azure"]
+packages = ["oncall_triage", "services.ingest", "services.console_api", "services.triage_worker", "cli.bankops", "scripts", "bank.aws", "bank.azure", "bank.k8s"]
 ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true
