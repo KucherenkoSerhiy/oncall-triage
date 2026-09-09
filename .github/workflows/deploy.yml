@@ -177,9 +177,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+      - name: AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: terraform init (read-only - outputs only)
+        run: >
+          terraform -chdir=infra/aws init
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="region=${{ env.AWS_REGION }}"
       - name: Probe the deployed system
-        # scripts/smoke.py lands with the alert spine (M2); until then the
-        # step says so instead of reporting a green it did not earn.
         run: |
-          if [ -f scripts/smoke.py ]; then python scripts/smoke.py; \
-          else echo "::notice::no smoke probe yet (arrives with M2)"; fi
+          SMOKE_HMAC_SECRET=$(aws ssm get-parameter --with-decryption \
+            --name "$(terraform -chdir=infra/aws output -raw hmac_secret_parameter)" \
+            --query Parameter.Value --output text)
+          SMOKE_TOKEN=$(aws ssm get-parameter --with-decryption \
+            --name "$(terraform -chdir=infra/aws output -raw console_token_parameter)" \
+            --query Parameter.Value --output text)
+          export SMOKE_HMAC_SECRET SMOKE_TOKEN
+          python scripts/smoke.py

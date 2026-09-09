@@ -142,10 +142,12 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 deploymentNode "Lambda" "" "AWS Lambda" {
                     containerInstance triage.ingest
                     containerInstance triage.worker
-                    containerInstance triage.api
                     containerInstance awsEstate.payments
                     containerInstance awsEstate.ledger
                     containerInstance awsEstate.auth
+                }
+                deploymentNode "API Gateway" "api.triage.serhiykucherenko.dev" "Amazon API Gateway (HTTP API)" {
+                    containerInstance triage.api
                 }
                 deploymentNode "SQS" "" "Amazon SQS" {
                     containerInstance triage.queue

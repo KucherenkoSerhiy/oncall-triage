@@ -34,6 +34,35 @@ Then set the five repository variables in GitHub, create the `demo`
 environment with yourself as required reviewer, and every later change
 flows through pull requests.
 
+## What `infra/aws` deploys
+
+The alert spine (M2): everything the triage brain needs to ingest an alert,
+queue it, hand it to a worker, and let an operator read the result.
+
+- **DynamoDB** (`storage.tf`): `alerts`, `verdicts`, `known-issues` -
+  provisioned 5/5 capacity (2/2 on GSIs) to stay in the always-free tier.
+- **SQS + SNS** (`messaging.tf`): the `alerts` queue (with a DLQ after 3
+  failed attempts) and the `alarms` SNS topic that will carry M4's alarm
+  producers into ingest.
+- **Lambda** (`lambdas.tf`): `ingest`, `console-api`, `triage-worker` -
+  Python 3.12 on arm64, one shared code zip, roles scoped to exactly the
+  tables/queue/parameters each function touches.
+- **API Gateway** (`api.tf`): an HTTP API at `api.<domain>` routing to
+  `ingest` (`POST /alerts`) and `console-api` (everything else), with
+  access logging and throttling.
+- **Console** (`console.tf`): a private S3 bucket behind CloudFront (Origin
+  Access Control) serving `console/` at the zone apex.
+- **Secrets** (`secrets.tf`): two SSM `SecureString` parameters, generated
+  in Terraform so no plaintext ever lands in the repo.
+
+An operator using `bankops` against a deployed environment reads the two
+generated secrets from SSM:
+
+```bash
+aws ssm get-parameter --with-decryption --name /nordwind-triage/demo/ingest-hmac-secret --query Parameter.Value --output text
+aws ssm get-parameter --with-decryption --name /nordwind-triage/demo/console-token --query Parameter.Value --output text
+```
+
 ## Conventions
 
 - Provider default tags on every resource: `project`, `env`, `owner`,

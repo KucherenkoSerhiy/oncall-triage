@@ -9,6 +9,7 @@ __pycache__/
 *.tfstate.*
 *.tfplan
 crash.log
+infra/aws/build/
 
 # tooling caches
 .ruff_cache/

@@ -20,3 +20,25 @@ skip-check:
   # logging needs a us-east-1 log group. Both are tracked in DESIGN.md.
   - CKV2_AWS_38   # DNSSEC signing
   - CKV2_AWS_39   # DNS query logging
+
+  # M2c - the alert spine (infra/aws/{storage,messaging,lambdas,api,console,secrets}.tf).
+  # v1 trade-offs; the DYNAMODB/SSM/Lambda-env plaintext ones are the exact
+  # accepted trade-off from docs/specs/m2c-spine-terraform-console.md.
+  - CKV_AWS_119   # DynamoDB CMK encryption - spec requires "SSE default" (AWS-owned key) to stay free
+  - CKV2_AWS_16   # DynamoDB autoscaling - fixed 5/5 provisioned capacity is the free-tier ceiling on purpose
+  - CKV_AWS_337   # SSM SecureString CMK - spec requires the AWS-managed KMS default key
+  - CKV_AWS_173   # Lambda env var CMK - plaintext secrets in Lambda config are the stated v1 trade-off (see lambdas.tf)
+  - CKV_AWS_115   # Lambda reserved concurrency - low, bursty portfolio traffic; no need to cap it
+  - CKV_AWS_116   # Lambda function-level DLQ (async destinations) - SQS-level DLQ already catches worker failures
+  - CKV_AWS_117   # Lambda in a VPC - every AWS resource here is a public managed endpoint; no VPC in this design
+  - CKV_AWS_50    # Lambda X-Ray tracing - added observability cost with no SLO this milestone depends on
+  - CKV_AWS_272   # Lambda code signing - needs a signing profile; out of scope for a single-account portfolio project
+  - CKV_AWS_158   # CloudWatch Logs KMS CMK - AWS-managed encryption at rest is already on by default
+  - CKV_AWS_338   # CloudWatch Logs >= 1 year retention - spec sets 14 days everywhere to cap log storage cost
+  - CKV_AWS_309   # API Gateway v2 route authorizer - auth is enforced in the Lambda (bearer token, ADR-0010)
+  - CKV_AWS_145   # S3 KMS-by-default - spec requires SSE-S3 (AES256) for the console bucket
+  - CKV_AWS_68    # CloudFront WAF - explicit non-requirement in docs/specs/m2c-spine-terraform-console.md
+  - CKV2_AWS_47   # CloudFront WAFv2 Log4j managed rule - same WAF non-requirement as CKV_AWS_68
+  - CKV_AWS_86    # CloudFront access logging - needs a second bucket; API Gateway already logs every request
+  - CKV_AWS_310   # CloudFront origin failover - single S3 origin; no second origin to fail over to
+  - CKV_AWS_374   # CloudFront geo restriction - public console with no geographic access policy to enforce
