@@ -1,0 +1,31 @@
+{
+  "receiver": "route-b-forwarder",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "FraudScoringLatencyHigh",
+        "service": "fraud-scoring",
+        "severity": "warning"
+      },
+      "annotations": {
+        "summary": "Fraud scoring p99 latency is high",
+        "description": "p99 exceeded 500ms for 5 minutes"
+      },
+      "startsAt": "2024-01-01T00:15:00Z"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "FraudScoringLatencyHigh",
+        "service": "fraud-scoring",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "Fraud scoring p99 latency is critical"
+      },
+      "startsAt": "2024-01-01T00:16:00Z"
+    }
+  ]
+}

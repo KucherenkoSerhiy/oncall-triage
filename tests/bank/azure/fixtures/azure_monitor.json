@@ -1,0 +1,24 @@
+{
+  "schemaId": "azureMonitorCommonAlertSchema",
+  "data": {
+    "essentials": {
+      "alertId": "/subscriptions/xxx/alerts/1",
+      "alertRule": "HighFailureRate",
+      "severity": "Sev2",
+      "signalType": "Metric",
+      "monitorCondition": "Fired",
+      "monitoringService": "Platform",
+      "alertTargetIDs": [
+        "/subscriptions/xxx/resourceGroups/rg1/providers/Microsoft.Web/sites/nordwind-triage-demo-customer-notifications"
+      ],
+      "description": "Function failures exceeded 3 over 5 minutes",
+      "firedDateTime": "2024-01-01T00:10:00Z"
+    },
+    "alertContext": {
+      "condition": {
+        "windowSize": "PT5M",
+        "allOf": [{"metricName": "Failures", "threshold": 3}]
+      }
+    }
+  }
+}

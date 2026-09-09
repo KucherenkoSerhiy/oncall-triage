@@ -12,8 +12,8 @@ from bank.aws.common import VALID_MODES
 from cli.bankops import client
 from services.ingest.hmac_auth import sign
 
-_COLUMNS = ("TIME", "SEV", "SERVICE", "ALERT", "STATUS", "OCC", "VERDICT")
-_WIDTHS = (8, 5, 20, 28, 8, 4, 12)
+_COLUMNS = ("TIME", "SEV", "ESTATE", "SERVICE", "ALERT", "STATUS", "OCC", "VERDICT")
+_WIDTHS = (8, 5, 11, 20, 28, 8, 4, 12)
 
 _CHAOS_COLUMNS = ("SERVICE", "MODE", "MIN LEFT")
 _CHAOS_WIDTHS = (12, 24, 10)
@@ -82,6 +82,7 @@ def _format_table(alerts: list[dict]) -> str:
                 (
                     received.strftime("%H:%M:%S"),
                     alert["severity"],
+                    alert["estate"],
                     alert["service"],
                     alert["alert_name"],
                     alert["status"],

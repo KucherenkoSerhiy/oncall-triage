@@ -81,6 +81,7 @@ def test_tail_renders_table_from_canned_response(monkeypatch, capsys):
             "alert_id": "A" * 26,
             "received_at": "2024-01-01T12:34:56Z",
             "severity": "sev2",
+            "estate": "aws",
             "service": "payments-api",
             "alert_name": "HighLatency",
             "status": "queued",
@@ -100,6 +101,7 @@ def test_tail_renders_table_from_canned_response(monkeypatch, capsys):
     assert exit_code == 0
     out = capsys.readouterr().out
     assert "12:34:56" in out
+    assert "aws" in out
     assert "payments-api" in out
     assert "HighLatency" in out
     assert "queued" in out
@@ -190,6 +192,32 @@ def test_chaos_sets_a_fault(monkeypatch):
     assert captured["method"] == "POST"
     assert captured["url"] == "https://api.example.com/chaos/payments"
     assert json.loads(captured["body"]) == {"mode": "errors", "minutes": 5}
+
+
+def test_chaos_sets_a_fault_for_customer_notifications(monkeypatch):
+    captured = {}
+
+    def fake_request(method, url, headers=None, body=None):
+        captured["method"] = method
+        captured["url"] = url
+        captured["body"] = body
+        return json.dumps(
+            {"service": "customer-notifications", "mode": "backlog", "until": 123.0}
+        ).encode()
+
+    monkeypatch.setattr(commands.client, "request", fake_request)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service="customer-notifications", mode="backlog", minutes=5, clear=False, status=False
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 0
+    assert captured["method"] == "POST"
+    assert captured["url"] == "https://api.example.com/chaos/customer-notifications"
+    assert json.loads(captured["body"]) == {"mode": "backlog", "minutes": 5}
 
 
 def test_chaos_rejects_invalid_mode_client_side(monkeypatch, capsys):
