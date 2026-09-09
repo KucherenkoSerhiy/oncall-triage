@@ -17,6 +17,15 @@ spec:
         {{- include "nordwind-bank.labels" . | nindent 8 }}
     spec:
       automountServiceAccountToken: false
+      # Pod-level context so trivy KSV-0118 / PSS restricted hold even before
+      # the container context applies; uid 10001 matches the image's USER.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: {{ .name }}
           image: "nordwind/{{ .name }}:{{ $.Values.imageTag }}"
