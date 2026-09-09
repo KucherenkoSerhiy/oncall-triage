@@ -193,6 +193,16 @@ requests (they only run on pushes to the default branch and on
 `workflow_dispatch`); a PR still plans successfully because
 `var.worker_image_sha` defaults to `latest`.
 
+## Diagnosing the live spine
+
+`.github/workflows/diagnose.yml` (Actions -> diagnose -> Run workflow) is a
+read-only look at AWS with the deploy role: Lambda errors / throttles /
+p95 per function, queue depths including the DLQs, account concurrency,
+the worker's configuration (secrets redacted), the daily LLM cap counter,
+the newest worker and ingest log lines, and one alert record by id. Use it
+first when a smoke probe reports `no verdict within 90s` or a chaos probe
+never sees its alert.
+
 ## Rollback
 
 `worker_image_sha` accepts any tag already in the ECR repository (images
