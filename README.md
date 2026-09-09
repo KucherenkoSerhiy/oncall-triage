@@ -75,16 +75,19 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 | M1 | Pipelines + bootstrap: Terraform roots, OIDC to both clouds, budgets, plan-on-PR / approve / apply | ✅ (first apply 2026-09-09) |
 | M2 | Alert spine without LLM: ingest → DynamoDB → SQS, console + API, `bankops fire`, custom domain | ✅ live at [triage.serhiykucherenko.dev](https://triage.serhiykucherenko.dev) (2026-09-09) |
 | M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | ✅ live (2026-09-09): real Claude verdicts via the image-based worker, smoke asserts a model verdict + a known-issue short-circuit |
-| M4 | AWS estate: three services + CloudWatch alarms + chaos | ⏳ |
-| M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ⏳ |
-| M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ⏳ |
-| M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | ⏳ |
-| M8 | C4 drift check against Terraform tags and Helm labels | ⏳ |
-| M9 | Hardening: self-observability + SLO, runbooks, rollback drill | ⏳ |
+| M4 | AWS estate: three services + CloudWatch alarms + chaos | 🔨 building ([#18](https://github.com/KucherenkoSerhiy/oncall-triage/issues/18)) |
+| M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ⏳ [#19](https://github.com/KucherenkoSerhiy/oncall-triage/issues/19), [#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20) |
+| M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ⏳ [#21](https://github.com/KucherenkoSerhiy/oncall-triage/issues/21), [#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22) |
+| M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | ⏳ [#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24) |
+| M8 | C4 drift check against Terraform tags and Helm labels | ⏳ [#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25) |
+| M9 | Hardening: self-observability + SLO, runbooks, rollback drill | ⏳ [#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30) |
 
 Every milestone has an offline gate CI runs and a live probe recorded in
 its pull request — the definition of done is in the
-[PR template](.github/PULL_REQUEST_TEMPLATE.md).
+[PR template](.github/PULL_REQUEST_TEMPLATE.md). Work is tracked as
+[GitHub milestones](https://github.com/KucherenkoSerhiy/oncall-triage/milestones)
+with one issue per pull-request-sized slice (`M5a`, `M5b`, ...); the
+specs the slices are built from live in [`docs/specs/`](docs/specs/).
 
 ## Repository map
 
