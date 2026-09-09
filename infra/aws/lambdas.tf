@@ -1,5 +1,7 @@
-# Packaging: one zip shared by all three functions. The handler dotted
-# paths (services.ingest.handler.lambda_handler etc.) require a top-level
+# Packaging: one zip shared by the two remaining zip-packaged functions,
+# ingest and console-api (the triage worker moved to an image-based Lambda
+# in M3b - see the triage-worker section below). The handler dotted paths
+# (services.ingest.handler.lambda_handler etc.) require a top-level
 # `services` package in the zip, so the archive is built from the repo
 # root with everything except `services/` excluded - `cli/` included,
 # since it is a sibling of `services/` at the repo root and is not needed
@@ -58,6 +60,15 @@ data "aws_ssm_parameter" "ingest_hmac_secret" {
 
 data "aws_ssm_parameter" "console_token" {
   name            = aws_ssm_parameter.console_token.name
+  with_decryption = true
+}
+
+# Not created by Terraform - its value is a human secret, set once (and
+# rotated) by the operator command in infra/README.md, or via deploy.yml's
+# manual `anthropic_api_key` dispatch input. See the precondition on
+# aws_lambda_function.triage_worker below for what happens if it is missing.
+data "aws_ssm_parameter" "anthropic_api_key" {
+  name            = "/${var.project}/${var.environment}/anthropic-api-key"
   with_decryption = true
 }
 
@@ -265,14 +276,22 @@ resource "aws_iam_role" "triage_worker" {
 data "aws_iam_policy_document" "triage_worker_inline" {
   statement {
     sid       = "AlertsTable"
-    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
-    resources = [aws_dynamodb_table.alerts.arn]
+    actions   = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"]
+    resources = [aws_dynamodb_table.alerts.arn, "${aws_dynamodb_table.alerts.arn}/index/by_status"]
+  }
+
+  # GetItem backs the redelivery short-circuit in handler.py; PutItem writes
+  # the verdict; UpdateItem is the atomic daily-cap counter (cap.py).
+  statement {
+    sid       = "VerdictsTable"
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.verdicts.arn]
   }
 
   statement {
-    sid       = "VerdictsTable"
-    actions   = ["dynamodb:PutItem"]
-    resources = [aws_dynamodb_table.verdicts.arn]
+    sid       = "KnownIssuesTable"
+    actions   = ["dynamodb:Query", "dynamodb:PutItem"]
+    resources = [aws_dynamodb_table.known_issues.arn]
   }
 
   statement {
@@ -301,23 +320,32 @@ resource "aws_iam_role_policy_attachment" "triage_worker_basic_execution" {
 resource "aws_lambda_function" "triage_worker" {
   function_name = "${local.name_prefix}-triage-worker"
   role          = aws_iam_role.triage_worker.arn
-  handler       = "services.triage_worker.handler.lambda_handler"
-  runtime       = "python3.12"
+  package_type  = "Image"
+  image_uri     = "${data.aws_ecr_repository.triage_worker.repository_url}:${var.worker_image_sha}"
   architectures = ["arm64"]
-  timeout       = 60
-  memory_size   = 512
-
-  filename         = data.archive_file.services.output_path
-  source_code_hash = data.archive_file.services.output_base64sha256
+  timeout       = 120
+  memory_size   = 1024
 
   environment {
     variables = {
-      ALERTS_TABLE   = aws_dynamodb_table.alerts.name
-      VERDICTS_TABLE = aws_dynamodb_table.verdicts.name
+      ALERTS_TABLE       = aws_dynamodb_table.alerts.name
+      VERDICTS_TABLE     = aws_dynamodb_table.verdicts.name
+      KNOWN_ISSUES_TABLE = aws_dynamodb_table.known_issues.name
+      ANTHROPIC_API_KEY  = data.aws_ssm_parameter.anthropic_api_key.value
+      TRIAGE_MODEL       = var.triage_model
+      DAILY_ALERT_CAP    = tostring(var.daily_alert_cap)
+      LOG_LEVEL          = "INFO"
     }
   }
 
   depends_on = [aws_cloudwatch_log_group.triage_worker, aws_iam_role_policy.triage_worker]
+
+  lifecycle {
+    precondition {
+      condition     = data.aws_ssm_parameter.anthropic_api_key.value != ""
+      error_message = "SSM parameter /${var.project}/${var.environment}/anthropic-api-key is empty or missing. Create it once with: aws ssm put-parameter --name /${var.project}/${var.environment}/anthropic-api-key --type SecureString --value <key> --overwrite (or run deploy.yml's workflow_dispatch with the anthropic_api_key input)."
+    }
+  }
 
   tags = local.tags.worker
 }

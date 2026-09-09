@@ -167,6 +167,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 deploymentNode "CloudWatch" "" "Amazon CloudWatch" {
                     containerInstance triage.dashboard
                 }
+                deploymentNode "ECR" "" "Amazon ECR (Terraform: infra/aws-ecr)" {
+                    infrastructureNode "triage-worker image" "Immutable image tagged by git SHA (also `:latest`); built and pushed by deploy.yml's `image` job, run by the Lambda above."
+                }
             }
             deploymentNode "Azure" "westeurope" "Terraform: infra/azure" {
                 deploymentNode "Function App (consumption)" "" "Azure Functions" {

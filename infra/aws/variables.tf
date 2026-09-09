@@ -39,3 +39,21 @@ variable "monthly_budget_usd" {
   type        = number
   default     = 8
 }
+
+variable "worker_image_sha" {
+  description = "Triage-worker image tag to deploy: `sha-<git sha>` from deploy.yml's `image` job, or an earlier one for rollback. Defaults to `latest` so a pull-request plan (no image job) is still realistic."
+  type        = string
+  default     = "latest"
+}
+
+variable "triage_model" {
+  description = "LiteLLM model id the triage worker calls."
+  type        = string
+  default     = "anthropic/claude-haiku-4-5-20251001"
+}
+
+variable "daily_alert_cap" {
+  description = "Maximum number of alerts triaged with a live model call per UTC day."
+  type        = number
+  default     = 500
+}

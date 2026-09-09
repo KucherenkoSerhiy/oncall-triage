@@ -1,6 +1,7 @@
-# Image-based Lambda for the triage worker. Terraform to actually deploy
-# this image (ECR, the image-based Lambda resource, the Anthropic key SSM
-# parameter) is M3b - this Dockerfile only builds and runs it locally.
+# Image-based Lambda for the triage worker. Built and pushed by the `image`
+# job in .github/workflows/deploy.yml (tagged `sha-<git sha>` and `latest`,
+# pushed to the ECR repository infra/aws-ecr creates); `task worker:build`
+# builds it locally for `task worker:local`.
 FROM --platform=linux/arm64 public.ecr.aws/lambda/python:3.12
 
 COPY requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt

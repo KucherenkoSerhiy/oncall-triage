@@ -111,3 +111,65 @@ def test_fire_alert_raises_on_non_202(monkeypatch):
         smoke.fire_alert("https://api.example", "secret")
 
     assert exc_info.value.step == "fire-alert"
+
+
+def test_fire_alert_accepts_service_and_description_overrides(monkeypatch):
+    captured = {}
+
+    def fake_http(method, url, headers=None, body=None):
+        captured["body"] = json.loads(body)
+        results = [{"alert_id": "a2", "fingerprint": "f", "deduped": False}]
+        return 202, json.dumps({"results": results}).encode()
+
+    monkeypatch.setattr(smoke, "http", fake_http)
+
+    smoke.fire_alert(
+        "https://api.example",
+        "secret",
+        service="payments",
+        alert_name="SmokeTestKnownIssue",
+        description="connection pool exhausted",
+        sample_logs=["ERROR: connection pool exhausted"],
+    )
+
+    assert captured["body"]["payload"]["service"] == "payments"
+    assert captured["body"]["payload"]["alert_name"] == "SmokeTestKnownIssue"
+    assert captured["body"]["payload"]["description"] == "connection pool exhausted"
+    assert captured["body"]["payload"]["sample_logs"] == ["ERROR: connection pool exhausted"]
+
+
+def test_teach_known_issue_posts_to_known_issues(monkeypatch):
+    captured = {}
+
+    def fake_http(method, url, headers=None, body=None):
+        captured["method"] = method
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["body"] = json.loads(body)
+        return 201, b"{}"
+
+    monkeypatch.setattr(smoke, "http", fake_http)
+
+    smoke.teach_known_issue(
+        "https://api.example", "token", "payments", "connection pool exhausted", "explained"
+    )
+
+    assert captured["method"] == "POST"
+    assert captured["url"] == "https://api.example/known-issues"
+    assert captured["headers"]["Authorization"] == "Bearer token"
+    assert captured["body"] == {
+        "service": "payments",
+        "pattern": "connection pool exhausted",
+        "explanation": "explained",
+    }
+
+
+def test_teach_known_issue_raises_on_non_201(monkeypatch):
+    monkeypatch.setattr(smoke, "http", lambda *args, **kwargs: (400, b"bad"))
+
+    with pytest.raises(smoke.SmokeError) as exc_info:
+        smoke.teach_known_issue(
+            "https://api.example", "token", "payments", "pattern", "explanation"
+        )
+
+    assert exc_info.value.step == "teach-known-issue"

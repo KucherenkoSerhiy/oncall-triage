@@ -49,16 +49,23 @@ def check_health(api_base: str) -> None:
         raise SmokeError("health", f"HTTP {status}: {body!r}")
 
 
-def fire_alert(api_base: str, hmac_secret: str) -> str:
+def fire_alert(
+    api_base: str,
+    hmac_secret: str,
+    service: str = "smoke",
+    alert_name: str = "SmokeTest",
+    description: str = "deploy.yml smoke probe",
+    sample_logs: list[str] | None = None,
+) -> str:
     payload = {
         "source": "bankops",
         "estate": "aws",
-        "service": "smoke",
-        "alert_name": "SmokeTest",
+        "service": service,
+        "alert_name": alert_name,
         "severity": "sev4",
-        "title": "SmokeTest",
-        "description": "deploy.yml smoke probe",
-        "sample_logs": [],
+        "title": alert_name,
+        "description": description,
+        "sample_logs": sample_logs or [],
         "labels": {},
         "fired_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
     }
@@ -75,6 +82,16 @@ def fire_alert(api_base: str, hmac_secret: str) -> str:
     if status != 202:
         raise SmokeError("fire-alert", f"HTTP {status}: {response_body!r}")
     return json.loads(response_body)["results"][0]["alert_id"]
+
+
+def teach_known_issue(
+    api_base: str, token: str, service: str, pattern: str, explanation: str
+) -> None:
+    body = json.dumps({"service": service, "pattern": pattern, "explanation": explanation}).encode()
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+    status, response_body = http("POST", f"{api_base}/known-issues", headers=headers, body=body)
+    if status != 201:
+        raise SmokeError("teach-known-issue", f"HTTP {status}: {response_body!r}")
 
 
 def wait_for_verdict(
@@ -109,13 +126,47 @@ def main() -> int:
 
     try:
         check_health(api_base)
+
         alert_id = fire_alert(api_base, hmac_secret)
         alert = wait_for_verdict(api_base, token, alert_id)
+        verdict = alert["verdict"]
+        if verdict["model"] in ("stub", "cap"):
+            raise SmokeError("verify-verdict", f"expected a real model, got {verdict['model']!r}")
+        if verdict["known"] is not False:
+            raise SmokeError(
+                "verify-verdict", f"fresh service should have no known issues: {verdict['known']!r}"
+            )
+
+        teach_known_issue(
+            api_base,
+            token,
+            service="payments",
+            pattern="connection pool exhausted",
+            explanation="Known DB pool scaling limit at peak traffic; auto-recovers, no paging.",
+        )
+        known_alert_id = fire_alert(
+            api_base,
+            hmac_secret,
+            service="payments",
+            alert_name="SmokeTestKnownIssue",
+            description="connection pool exhausted while authorizing payment",
+            sample_logs=["ERROR: connection pool exhausted while authorizing payment"],
+        )
+        known_alert = wait_for_verdict(api_base, token, known_alert_id)
+        known_verdict = known_alert["verdict"]
+        if known_verdict["known"] is not True:
+            raise SmokeError(
+                "verify-known-verdict", f"expected known=true: {known_verdict['known']!r}"
+            )
+        if known_verdict["action"] != "ack":
+            raise SmokeError(
+                "verify-known-verdict", f"expected action=ack: {known_verdict['action']!r}"
+            )
     except SmokeError as exc:
         print(f"FAIL[{exc.step}]: {exc}", file=sys.stderr)
         return 1
 
-    print(f"OK: alert_id={alert_id} verdict_action={alert['verdict']['action']}")
+    print(f"OK: alert_id={alert_id} action={verdict['action']}; known_alert_id={known_alert_id}")
     return 0
 
 
