@@ -74,3 +74,19 @@ tasks:
     desc: Run the ADK dev UI for the triage agent (phase-1 experience)
     cmds:
       - adk web
+
+  worker:build:
+    desc: Build the triage worker's Lambda container image locally (not pushed anywhere)
+    cmds:
+      - docker build -f services/triage_worker/Dockerfile -t nordwind-triage-worker:local .
+
+  worker:local:
+    desc: Run the built image under the Lambda Runtime Interface Emulator and invoke it with the sample SQS event
+    deps: [worker:build]
+    cmds:
+      - docker run --rm -d --name nordwind-triage-worker-local -p 9000:8080
+        -e ALERTS_TABLE -e VERDICTS_TABLE -e KNOWN_ISSUES_TABLE -e ANTHROPIC_API_KEY -e TRIAGE_MODEL -e DAILY_ALERT_CAP
+        nordwind-triage-worker:local
+      - sleep 2
+      - 'curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d @tests/triage_worker/fixtures/sqs_event.json'
+      - docker stop nordwind-triage-worker-local

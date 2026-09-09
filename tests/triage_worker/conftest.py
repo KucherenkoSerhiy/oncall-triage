@@ -9,6 +9,7 @@ from moto import mock_aws
 _REGION = "eu-north-1"
 _ALERTS_TABLE = "alerts-test"
 _VERDICTS_TABLE = "verdicts-test"
+_KNOWN_ISSUES_TABLE = "known-issues-test"
 
 
 @pytest.fixture
@@ -16,6 +17,7 @@ def aws_credentials(monkeypatch):
     monkeypatch.setenv("AWS_DEFAULT_REGION", _REGION)
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
 
 @pytest.fixture
@@ -53,15 +55,32 @@ def moto_infra(aws_credentials, monkeypatch):
         )
         verdicts.wait_until_exists()
 
+        known_issues = dynamodb.create_table(
+            TableName=_KNOWN_ISSUES_TABLE,
+            KeySchema=[
+                {"AttributeName": "service", "KeyType": "HASH"},
+                {"AttributeName": "issue_id", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "service", "AttributeType": "S"},
+                {"AttributeName": "issue_id", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        known_issues.wait_until_exists()
+
         sqs = boto3.client("sqs", region_name=_REGION)
         queue_url = sqs.create_queue(QueueName="alerts-queue-test")["QueueUrl"]
 
         monkeypatch.setenv("ALERTS_TABLE", _ALERTS_TABLE)
         monkeypatch.setenv("VERDICTS_TABLE", _VERDICTS_TABLE)
+        monkeypatch.setenv("KNOWN_ISSUES_TABLE", _KNOWN_ISSUES_TABLE)
+        monkeypatch.setenv("DAILY_ALERT_CAP", "500")
 
         yield {
             "alerts_table": _ALERTS_TABLE,
             "verdicts_table": _VERDICTS_TABLE,
+            "known_issues_table": _KNOWN_ISSUES_TABLE,
             "queue_url": queue_url,
             "region": _REGION,
         }
