@@ -12,8 +12,8 @@ Kubernetes estate with Prometheus, Alertmanager and Kafka — all of it
 Terraform and Helm, deployed only by GitHub Actions over OIDC, with C4
 diagrams that CI keeps honest. Cloud budget: under $10 a month.
 
-> **Status:** phase 1 (the agent) is done and live-verified; phase 2 (the
-> cloud system) is being built milestone by milestone — see the roadmap.
+> **Status:** the alert spine is live at [triage.serhiykucherenko.dev](https://triage.serhiykucherenko.dev)
+> (M2); the Claude-backed triage worker is in review (M3) — see the roadmap.
 
 ## What it does
 
@@ -73,8 +73,8 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 |---|---|---|
 | M0 | Repo, CI, design, ADRs, C4 model | ✅ |
 | M1 | Pipelines + bootstrap: Terraform roots, OIDC to both clouds, budgets, plan-on-PR / approve / apply | ✅ (first apply 2026-09-09) |
-| M2 | Alert spine without LLM: ingest → DynamoDB → SQS, console + API, `bankops fire`, custom domain | ⏳ |
-| M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | ⏳ |
+| M2 | Alert spine without LLM: ingest → DynamoDB → SQS, console + API, `bankops fire`, custom domain | ✅ live at [triage.serhiykucherenko.dev](https://triage.serhiykucherenko.dev) (2026-09-09) |
+| M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | 🔍 in review (#15, #16) |
 | M4 | AWS estate: three services + CloudWatch alarms + chaos | ⏳ |
 | M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ⏳ |
 | M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ⏳ |
