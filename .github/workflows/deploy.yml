@@ -71,7 +71,7 @@ jobs:
         root: [aws, azure]
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.10.5"
       - name: AWS credentials (OIDC) - also the state backend for both roots
@@ -133,7 +133,7 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: steps.sel.outputs.run == 'true'
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         if: steps.sel.outputs.run == 'true'
         with:
           terraform_version: "1.10.5"
