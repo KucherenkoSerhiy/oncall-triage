@@ -22,6 +22,12 @@ variable "github_repository" {
   default     = "KucherenkoSerhiy/oncall-triage"
 }
 
+variable "github_repository_immutable" {
+  description = "owner@ownerId/repo@repoId - the immutable subject form newer repositories emit in OIDC tokens (GET /repos/{owner}/{repo}/actions/oidc/customization/sub)."
+  type        = string
+  default     = "KucherenkoSerhiy@13918875/oncall-triage@1360265871"
+}
+
 variable "state_bucket_name" {
   description = "Globally unique name for the Terraform state bucket."
   type        = string

@@ -105,15 +105,21 @@ data "aws_iam_policy_document" "deploy_trust" {
 
     # Plans from pull requests, applies from the default branch through
     # the `demo` environment, manual dispatches from the default branch.
+    # GitHub emits either the classic subject (repo:owner/repo:...) or,
+    # for newer repositories, the immutable one (repo:owner@id/repo@id:...);
+    # both are accepted so a rename or an ID-based token cannot lock the
+    # pipeline out.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_repository}:pull_request",
-        "repo:${var.github_repository}:ref:refs/heads/master",
-        "repo:${var.github_repository}:ref:refs/heads/main",
-        "repo:${var.github_repository}:environment:${var.environment}",
-      ]
+      values = flatten([
+        for repo in [var.github_repository, var.github_repository_immutable] : [
+          "repo:${repo}:pull_request",
+          "repo:${repo}:ref:refs/heads/master",
+          "repo:${repo}:ref:refs/heads/main",
+          "repo:${repo}:environment:${var.environment}",
+        ]
+      ])
     }
   }
 }

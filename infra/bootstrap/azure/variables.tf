@@ -21,3 +21,9 @@ variable "github_repository" {
   type        = string
   default     = "KucherenkoSerhiy/oncall-triage"
 }
+
+variable "github_repository_immutable" {
+  description = "owner@ownerId/repo@repoId - the immutable subject form newer repositories emit in OIDC tokens."
+  type        = string
+  default     = "KucherenkoSerhiy@13918875/oncall-triage@1360265871"
+}

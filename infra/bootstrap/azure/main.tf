@@ -19,12 +19,17 @@ locals {
     managed_by  = "terraform/bootstrap"
   }
 
-  federated_subjects = {
-    pull-request = "repo:${var.github_repository}:pull_request"
-    master       = "repo:${var.github_repository}:ref:refs/heads/master"
-    main         = "repo:${var.github_repository}:ref:refs/heads/main"
-    environment  = "repo:${var.github_repository}:environment:${var.environment}"
-  }
+  # Entra federated credentials match the subject exactly (no wildcards), so
+  # both GitHub subject forms are registered: classic repo:owner/repo and
+  # the immutable repo:owner@id/repo@id that newer repositories emit.
+  federated_subjects = merge([
+    for key, repo in { classic = var.github_repository, immutable = var.github_repository_immutable } : {
+      "${key}-pull-request"    = "repo:${repo}:pull_request"
+      "${key}-master"          = "repo:${repo}:ref:refs/heads/master"
+      "${key}-main"            = "repo:${repo}:ref:refs/heads/main"
+      "${key}-environment"     = "repo:${repo}:environment:${var.environment}"
+    }
+  ]...)
 }
 
 resource "azurerm_resource_group" "main" {
