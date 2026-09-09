@@ -75,10 +75,10 @@ jobs:
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
             | tar -xz -C /usr/local/bin kubeconform
       - name: Install trivy
-        run: |
-          curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.58.1/trivy_0.58.1_Linux-64bit.tar.gz \
-            | tar -xz -C /usr/local/bin trivy
-      - run: helm lint deploy/helm/nordwind-bank
+        uses: aquasecurity/setup-trivy@v0.3.1
+        with:
+          version: v0.74.0
+          cache: true
       - name: helm template | kubeconform -strict (default values)
         run: |
           helm template deploy/helm/nordwind-bank | kubeconform -strict -summary -kubernetes-version 1.31.0 \
