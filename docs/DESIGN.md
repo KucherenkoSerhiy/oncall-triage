@@ -574,9 +574,10 @@ click — exactly the "intervene only on real blockers" contract.
 4. A billing e-mail for the two budget alerts.
 5. Tooling install on this machine: Terraform, AWS CLI, Azure CLI, `gh`,
    `kind`, `kubectl`, `helm`, `task` (all free; Docker is already here).
-6. **DNS delegation**: four NS records for `triage` added once at wherever
-   `serhiykucherenko.dev` is hosted (I'll hand you the exact records after
-   the zone exists; if it's Cloudflare, Terraform can do it too).
+6. **DNS delegation**: Terraform-managed (`infra/aws/dns_delegation.tf`
+   writes the NS records into the Cloudflare parent zone) and needs the
+   `CLOUDFLARE_API_TOKEN` repository secret (Zone:Read + DNS:Edit on
+   `serhiykucherenko.dev` only).
 
 ## 15. Risks
 

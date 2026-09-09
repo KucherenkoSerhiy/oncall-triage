@@ -43,9 +43,10 @@ resource "aws_budgets_budget" "monthly" {
 }
 
 # ---------------------------------------------------------------- DNS zone
-# Delegated from the parent domain by four NS records (one-time manual
-# step; see `output.name_servers`). Certificates and records for the
-# console and the API are added with the alert spine (M2).
+# Delegated from the parent domain by four NS records that Terraform
+# writes into the Cloudflare parent zone (see dns_delegation.tf).
+# Certificates and records for the console and the API are added with
+# the alert spine (M2).
 
 resource "aws_route53_zone" "triage" {
   name    = var.domain
