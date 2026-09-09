@@ -45,3 +45,26 @@ skip-check:
 
   # M3b - the triage-worker image (infra/aws-ecr/ecr.tf, infra/aws/lambdas.tf).
   - CKV_AWS_136   # ECR KMS encryption - spec requires AES256 (AWS-managed key), same free-tier trade-off as the other stores
+
+  # M5b - the Azure Functions estate (infra/azure/{storage,functions,alerts}.tf).
+  # Consumption (Y1) plan + LRS storage are the spec's budget ($2/month);
+  # nothing here sits behind a VNet (mirrors the AWS estate's CKV_AWS_117
+  # "no VPC in this design" trade-off) - Private Endpoints, zone redundancy
+  # and a Premium plan all cost real money this milestone doesn't have.
+  # Verified against `checkov --config-file .checkov.yaml` (what ci.yml's
+  # checkov-action actually runs) - a bare `checkov --directory infra/azure`
+  # invocation does not evaluate these checks at all (graph checks need the
+  # full `directory: [infra]` scan the config file gives them), so re-check
+  # with the config file, not a narrower ad-hoc command, before touching
+  # this list.
+  - CKV_AZURE_212 # Service Plan minimum instance count - Y1 Consumption has no fixed instance count; serverless scale is the point
+  - CKV_AZURE_225 # Service Plan zone redundancy - Premium-plan-only feature, not available on Y1 Consumption
+  - CKV_AZURE_221 # Function App public network access - both apps need a public HTTPS endpoint; no VNet in this design
+  - CKV_AZURE_59  # Storage account public access - the Functions control-plane storage is reached over its public endpoint; no VNet in this design
+  - CKV_AZURE_33  # Storage Analytics queue logging - Application Insights + Log Analytics already cover this milestone's observability
+  - CKV_AZURE_206 # Storage account replication - spec requires LRS (the $2/month budget); GRS/ZRS cost more for a control-plane-only account
+  - CKV2_AZURE_33 # Storage account private endpoint - same "no VNet" trade-off as CKV_AZURE_221/CKV_AZURE_59
+  - CKV2_AZURE_41 # Storage account SAS expiration policy - no application code issues SAS tokens from this account; Functions runtime plumbing only
+  - CKV2_AZURE_38 # Storage account soft-delete - holds only Functions triggers/locks/deployment zips, nothing worth a recovery window
+  - CKV2_AZURE_1  # Storage account customer-managed key - a CMK needs Key Vault (~$1/month), out of budget; Microsoft-managed encryption is already on by default
+  - CKV2_AZURE_40 # Storage account shared-key authorization - Y1 Consumption Function apps authenticate to their own control-plane storage with an account key; no managed-identity path exists for that connection on this plan (infra/README.md)

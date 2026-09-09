@@ -35,7 +35,7 @@ on:
       chaos_probe:
         description: after the smoke probe, drive one real alarm end to end (payments-pool = PoolExhausted -> known-issue verdict)
         type: choice
-        options: [none, payments-pool, payments-errors, ledger-lag, auth-jwks]
+        options: [none, payments-pool, payments-errors, ledger-lag, auth-jwks, notifications-429]
         default: none
 
 permissions:
@@ -268,9 +268,28 @@ jobs:
           fi
       - name: terraform plan
         run: |
+          EXTRA_VARS=""
+          if [ "${{ matrix.root }}" = "azure" ]; then
+            # infra/azure never talks to AWS itself (M1), so its two Function
+            # app secrets ride in as -var flags read here with the AWS role -
+            # same SSM parameters and command as the smoke job.
+            terraform -chdir=infra/aws init -input=false \
+              -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+              -backend-config="region=${{ env.AWS_REGION }}" >/dev/null
+            CONSOLE_TOKEN=$(aws ssm get-parameter --with-decryption \
+              --name "$(terraform -chdir=infra/aws output -raw console_token_parameter)" \
+              --query Parameter.Value --output text)
+            INGEST_HMAC_SECRET=$(aws ssm get-parameter --with-decryption \
+              --name "$(terraform -chdir=infra/aws output -raw hmac_secret_parameter)" \
+              --query Parameter.Value --output text)
+            echo "::add-mask::$CONSOLE_TOKEN"
+            echo "::add-mask::$INGEST_HMAC_SECRET"
+            EXTRA_VARS="-var=console_token=$CONSOLE_TOKEN -var=ingest_hmac_secret=$INGEST_HMAC_SECRET"
+          fi
           terraform -chdir=infra/${{ matrix.root }} plan -no-color -out=tfplan -lock-timeout=5m \
             -var="notification_email=${{ secrets.BUDGET_EMAIL }}" \
             ${{ steps.worker_var.outputs.flag }} \
+            $EXTRA_VARS \
             | tee plan.txt
       - name: Post plan on the PR
         if: github.event_name == 'pull_request'
@@ -342,9 +361,27 @@ jobs:
           terraform -chdir=infra/${{ matrix.root }} init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="region=${{ env.AWS_REGION }}"
+          EXTRA_VARS=""
+          if [ "${{ matrix.root }}" = "azure" ]; then
+            # Same SSM read as the plan job - infra/azure never talks to AWS
+            # itself, so its two Function app secrets ride in as -var flags.
+            terraform -chdir=infra/aws init -input=false \
+              -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+              -backend-config="region=${{ env.AWS_REGION }}" >/dev/null
+            CONSOLE_TOKEN=$(aws ssm get-parameter --with-decryption \
+              --name "$(terraform -chdir=infra/aws output -raw console_token_parameter)" \
+              --query Parameter.Value --output text)
+            INGEST_HMAC_SECRET=$(aws ssm get-parameter --with-decryption \
+              --name "$(terraform -chdir=infra/aws output -raw hmac_secret_parameter)" \
+              --query Parameter.Value --output text)
+            echo "::add-mask::$CONSOLE_TOKEN"
+            echo "::add-mask::$INGEST_HMAC_SECRET"
+            EXTRA_VARS="-var=console_token=$CONSOLE_TOKEN -var=ingest_hmac_secret=$INGEST_HMAC_SECRET"
+          fi
           terraform -chdir=infra/${{ matrix.root }} apply -auto-approve -lock-timeout=5m \
             -var="notification_email=${{ secrets.BUDGET_EMAIL }}" \
-            ${{ steps.worker_var.outputs.flag }}
+            ${{ steps.worker_var.outputs.flag }} \
+            $EXTRA_VARS
 
   smoke:
     name: smoke probe
@@ -388,9 +425,13 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.chaos_probe != 'none' && inputs.chaos_probe != ''
         run: |
           case "${{ inputs.chaos_probe }}" in
-            payments-pool)   set -- --service payments --mode pool --expect-alert PoolExhausted --expect-known ;;
-            payments-errors) set -- --service payments --mode errors --expect-alert Errors ;;
-            ledger-lag)      set -- --service ledger --mode lag --expect-alert ApproximateAgeOfOldestMessage ;;
-            auth-jwks)       set -- --service auth --mode jwks-rotation --expect-alert AuthFailures ;;
+            payments-pool)     set -- --service payments --mode pool --expect-alert PoolExhausted --expect-known ;;
+            payments-errors)   set -- --service payments --mode errors --expect-alert Errors ;;
+            ledger-lag)        set -- --service ledger --mode lag --expect-alert ApproximateAgeOfOldestMessage ;;
+            auth-jwks)         set -- --service auth --mode jwks-rotation --expect-alert AuthFailures ;;
+            # Azure Monitor evaluates on a slower cadence than CloudWatch;
+            # 12 min covers the metric alert's up-to-a-minute delay plus the
+            # scheduled query rule's own PT1M/PT5M evaluation window.
+            notifications-429) set -- --service customer-notifications --mode provider-429 --expect-alert Provider429 --timeout 720 ;;
           esac
           python scripts/chaos_probe.py "$@"

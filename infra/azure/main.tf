@@ -8,6 +8,26 @@ provider "azurerm" {
 
 locals {
   name_prefix = "${var.project}-${var.environment}"
+
+  # No azurerm provider-level default_tags (unlike the AWS root), so every
+  # resource merges these in explicitly. c4_container matches an identifier
+  # in docs/c4/workspace.dsl (the drift check keys on it); resources that
+  # don't map to a single container (shared Functions plumbing: storage
+  # account, service plan, Log Analytics, Application Insights) plus the
+  # alerting resources are tagged "monitor" - see infra/README.md.
+  common_tags = {
+    project     = var.project
+    env         = var.environment
+    owner       = "serhiy"
+    cost_center = "portfolio"
+    managed_by  = "terraform/azure"
+  }
+
+  tags = {
+    notifications = merge(local.common_tags, { c4_container = "notifications" })
+    forwarder     = merge(local.common_tags, { c4_container = "forwarder" })
+    monitor       = merge(local.common_tags, { c4_container = "monitor" })
+  }
 }
 
 # Created by infra/bootstrap/azure; the deploy identity is Contributor here.

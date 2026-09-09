@@ -92,6 +92,7 @@ def run(
     expect_alert: str,
     expect_known: bool,
     minutes: int,
+    timeout: float | None = None,
 ) -> dict:
     started = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
     fault = set_fault(api_base, token, service, mode, minutes)
@@ -103,7 +104,7 @@ def run(
             service,
             expect_alert,
             not_before=started,
-            timeout=_ALERT_TIMEOUT_SECONDS,
+            timeout=timeout if timeout is not None else _ALERT_TIMEOUT_SECONDS,
             interval=_ALERT_POLL_SECONDS,
         )
         print(f"alert arrived: {alert['alert_id']} {alert['alert_name']} source={alert['source']}")
@@ -127,6 +128,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expect-alert", required=True, help="substring of the alarm/rule name")
     parser.add_argument("--expect-known", action="store_true")
     parser.add_argument("--minutes", type=int, default=8)
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=_ALERT_TIMEOUT_SECONDS,
+        help="seconds to wait for the alert to arrive at the spine (default: %(default)s)",
+    )
     args = parser.parse_args(argv)
 
     api_base = os.environ.get("API_BASE", _DEFAULT_API_BASE)
@@ -140,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
             args.expect_alert,
             args.expect_known,
             args.minutes,
+            args.timeout,
         )
     except SmokeError as exc:
         print(f"FAIL[{exc.step}]: {exc}", file=sys.stderr)

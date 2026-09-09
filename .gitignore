@@ -10,6 +10,7 @@ __pycache__/
 *.tfplan
 crash.log
 infra/aws/build/
+infra/azure/build/
 
 # tooling caches
 .ruff_cache/

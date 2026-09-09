@@ -42,6 +42,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
 
         azureEstate = softwareSystem "Nordwind serverless estate (Azure)" "One bank service on Azure Functions, Azure Monitor alerts, and the always-on alert forwarder." {
             notifications = container "customer-notifications" "SMS / e-mail fan-out. Chaos: provider-429, backlog." "Azure Function (Python)"
+            appInsights = container "Application Insights" "Custom metrics (provider_429, notifications_backlog) and exceptions from customer-notifications; the alert rules query it." "Application Insights + Log Analytics"
             monitor = container "Azure Monitor" "Metric alert rules + action group." "Azure Monitor"
             forwarder = container "alert forwarder" "Receives Azure Monitor action-group calls and Alertmanager route-B webhooks, signs with HMAC, posts to ingest." "Azure Function (Python)"
         }
@@ -79,8 +80,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         triage.api -> awsEstate.faults "GET/POST/DELETE chaos"
 
         // Azure estate
-        azureEstate.notifications -> azureEstate.monitor "telemetry"
-        azureEstate.monitor -> azureEstate.forwarder "action group webhook" "HTTPS"
+        azureEstate.notifications -> triage.api "GET /chaos (bearer)" "HTTPS"
+        azureEstate.notifications -> azureEstate.appInsights "custom metrics"
+        azureEstate.monitor -> azureEstate.forwarder "action group webhook (common alert schema)" "HTTPS"
         azureEstate.forwarder -> triage.ingest "canonical alert" "HTTPS + HMAC"
 
         // Kubernetes estate
@@ -185,6 +187,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 deploymentNode "Function App (consumption)" "" "Azure Functions" {
                     containerInstance azureEstate.notifications
                     containerInstance azureEstate.forwarder
+                }
+                deploymentNode "Application Insights + Log Analytics" "" "Azure Monitor" {
+                    containerInstance azureEstate.appInsights
                 }
                 deploymentNode "Azure Monitor" "" "Azure Monitor" {
                     containerInstance azureEstate.monitor

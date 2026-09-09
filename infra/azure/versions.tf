@@ -6,6 +6,14 @@ terraform {
       source  = "hashicorp/azurerm"
       version = ">= 4.0, < 5.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = ">= 2.4, < 3.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.6, < 4.0"
+    }
   }
 
   # Same S3 backend as the AWS root (one place for all state); Azure auth

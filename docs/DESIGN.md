@@ -95,7 +95,7 @@ demonstrable on day one, exactly as the repo does today.
 | `payments` | AWS Lambda | card payment authorisation API | `errors` (5xx burst), `latency` (p99 > 2 s), `pool` (connection pool exhausted — the seeded known issue) | CloudWatch on Lambda `Errors`, `Duration` p99 | M4 ✅ |
 | `ledger` | AWS Lambda ← SQS | double-entry posting worker | `reconciliation-mismatch`, `lag` (queue age) | CloudWatch on SQS `ApproximateAgeOfOldestMessage` | M4 ✅ |
 | `auth` | AWS Lambda | token issuance / JWKS | `jwks-rotation` (unknown key id), `lockouts` | CloudWatch on custom metric `AuthFailures` | M4 ✅ |
-| `customer-notifications` | Azure Function | SMS / e-mail fan-out | `provider-429`, `backlog` | Azure Monitor metric alert on Function failures + storage-queue length | M5a code / M5b deploy |
+| `customer-notifications` | Azure Function | SMS / e-mail fan-out | `provider-429`, `backlog` | Azure Monitor metric alert on Function failures + storage-queue length | M5 ✅ |
 | `cards-authorization` | Kubernetes (kind) | ISO-8583-ish auth switch; **produces** `card.authorized` | `timeouts`, `issuer-down` | Prometheus rule on request p99 / error ratio | M6 |
 | `fraud-scoring` | Kubernetes (kind) | ML scoring; **consumes** `card.authorized`, **produces** `fraud.scored` | `model-drift`, `latency`, `crashloop`, `lag` (stops consuming) | Prometheus rules on `fraud_score_bucket` drift, pod restarts, `kafka_consumergroup_lag` | M6 |
 | `open-banking-api` | Kubernetes (kind) | PSD2 third-party API gateway; **consumes** `fraud.scored` | `rate-limit-storm` (429s), `cert-expiry` | Prometheus rules on 429 ratio, `probe_ssl_earliest_cert_expiry` | M6 |
