@@ -72,7 +72,7 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 | M | Milestone | Status |
 |---|---|---|
 | M0 | Repo, CI, design, ADRs, C4 model | ✅ |
-| M1 | Pipelines + bootstrap: Terraform roots, OIDC to both clouds, budgets, plan-on-PR / approve / apply | ✅ code · ⏳ first apply |
+| M1 | Pipelines + bootstrap: Terraform roots, OIDC to both clouds, budgets, plan-on-PR / approve / apply | ✅ (first apply 2026-09-09) |
 | M2 | Alert spine without LLM: ingest → DynamoDB → SQS, console + API, `bankops fire`, custom domain | ⏳ |
 | M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | ⏳ |
 | M4 | AWS estate: three services + CloudWatch alarms + chaos | ⏳ |
