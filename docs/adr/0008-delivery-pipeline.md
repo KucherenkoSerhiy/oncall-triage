@@ -15,3 +15,5 @@ Short-lived branches, PR required, squash-merge. deploy.yml posts a Terraform pl
 ## Consequences
 
 No cloud credential exists in GitHub; the bootstrap that creates the OIDC trust is applied once by a human from infra/bootstrap. Every PR shows exactly what will change.
+
+Amendment 2026-09-09: GitHub issues the *immutable* OIDC subject (`repo:owner@id/repo@id:...`) for repositories created after July 2026, and this repository is one of them. Both trust policies (AWS role, Azure federated credentials) accept the classic and the immutable subject, pinned to this owner and repository id, so a rename cannot lock the pipeline out and a wildcarded id is never used.

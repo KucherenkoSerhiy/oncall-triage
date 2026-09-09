@@ -28,6 +28,12 @@ permissions:
   contents: read
   pull-requests: write
 
+# bash here means `bash -eo pipefail`, so `terraform plan | tee` fails the
+# job when terraform fails (the default shell only sets -e).
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
@@ -95,7 +101,7 @@ jobs:
         run: |
           terraform -chdir=infra/${{ matrix.root }} plan -no-color -out=tfplan \
             -var="notification_email=${{ secrets.BUDGET_EMAIL }}" \
-            -var="worker_image_sha=${{ inputs.worker_image_sha }}" \
+            ${{ inputs.worker_image_sha && format('-var="worker_image_sha={0}"', inputs.worker_image_sha) || '' }} \
             | tee plan.txt
       - name: Post plan on the PR
         if: github.event_name == 'pull_request'
