@@ -7,10 +7,16 @@ name: deploy
 
 on:
   pull_request:
-    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/triage_worker/**, .github/workflows/deploy.yml]
+    # Everything that ends up inside a deployed artifact: Terraform roots, the
+    # Lambda zips (archive_file over services/, bank/aws/, oncall_triage/), the
+    # worker image, and the probes the smoke job runs (#43).
+    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, .github/workflows/deploy.yml]
   push:
     branches: [master, main]
-    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/triage_worker/**, .github/workflows/deploy.yml]
+    # Everything that ends up inside a deployed artifact: Terraform roots, the
+    # Lambda zips (archive_file over services/, bank/aws/, oncall_triage/), the
+    # worker image, and the probes the smoke job runs (#43).
+    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, .github/workflows/deploy.yml]
   workflow_dispatch:
     inputs:
       root:
