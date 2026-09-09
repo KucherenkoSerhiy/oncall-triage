@@ -173,3 +173,36 @@ def test_teach_known_issue_raises_on_non_201(monkeypatch):
         )
 
     assert exc_info.value.step == "teach-known-issue"
+
+
+def test_fire_alert_labels_each_probe_run_uniquely(monkeypatch):
+    # Regression for #38: two deploys inside ingest's 30-minute dedup window
+    # must not share a fingerprint, so every probe alert carries a run label.
+    captured = {}
+
+    def fake_http(method, url, headers=None, body=None):
+        captured["body"] = json.loads(body)
+        results = [{"alert_id": "a1", "fingerprint": "f", "deduped": False}]
+        return 202, json.dumps({"results": results}).encode()
+
+    monkeypatch.setattr(smoke, "http", fake_http)
+    monkeypatch.setenv("GITHUB_RUN_ID", "34404435072")
+
+    smoke.fire_alert("https://api.example", "secret")
+    assert captured["body"]["payload"]["labels"] == {"probe_run": "34404435072"}
+
+    smoke.fire_alert("https://api.example", "secret", run_id="explicit")
+    assert captured["body"]["payload"]["labels"] == {"probe_run": "explicit"}
+
+
+def test_fire_alert_fails_fast_when_ingest_deduped_it(monkeypatch):
+    results = [{"alert_id": "a1", "fingerprint": "f", "deduped": True}]
+    monkeypatch.setattr(
+        smoke, "http", lambda *a, **k: (202, json.dumps({"results": results}).encode())
+    )
+
+    with pytest.raises(smoke.SmokeError) as exc_info:
+        smoke.fire_alert("https://api.example", "secret")
+
+    assert exc_info.value.step == "fire-alert"
+    assert "deduplicated" in str(exc_info.value)

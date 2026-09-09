@@ -61,7 +61,7 @@ jobs:
           for q in alerts alerts-dlq ledger ledger-dlq; do
             url=$(aws sqs get-queue-url --queue-name $PREFIX-$q --query QueueUrl --output text)
             aws sqs get-queue-attributes --queue-url "$url" \
-              --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible ApproximateAgeOfOldestMessage \
+              --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible ApproximateNumberOfMessagesDelayed \
               --query "Attributes" --output json | jq -c --arg q "$q" '{queue:$q} + .'
           done
       - name: Account concurrency + worker configuration
