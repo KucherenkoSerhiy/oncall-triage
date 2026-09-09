@@ -1,0 +1,13 @@
+{
+  "AlarmName": "nordwind-triage-demo-Sev2-QueueBacklog",
+  "AlarmDescription": "Backlog too high; service=payments-worker",
+  "NewStateValue": "ALARM",
+  "NewStateReason": "Threshold Crossed: 1 datapoint [120.0] was greater than the threshold (100.0).",
+  "StateChangeTime": "2024-01-01T00:05:00Z",
+  "Trigger": {
+    "MetricName": "ApproximateNumberOfMessagesVisible",
+    "Dimensions": [
+      {"name": "QueueName", "value": "nordwind-triage-demo-payments-worker-queue"}
+    ]
+  }
+}
