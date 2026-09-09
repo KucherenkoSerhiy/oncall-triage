@@ -81,7 +81,8 @@ jobs:
           echo "=== alarms ==="
           aws cloudwatch describe-alarms --alarm-name-prefix "$PREFIX-" --output json             | jq -r '.MetricAlarms[] | "\(.StateValue)	\(.AlarmName)	\(.StateUpdatedTimestamp)	\(.StateReason[0:120])"'
           echo "=== alarm history (state changes + actions, newest first) ==="
-          aws cloudwatch describe-alarm-history --alarm-name-prefix "$PREFIX-" --max-records 25             --start-date "$(date -u -d "-${{ inputs.minutes }} minutes" +%Y-%m-%dT%H:%M:%SZ)" --output json             | jq -r '.AlarmHistoryItems[] | "\(.Timestamp)	\(.HistoryItemType)	\(.AlarmName)	\(.HistorySummary)"'
+          aws cloudwatch describe-alarm-history --max-records 100 --history-item-type Action             --start-date "$(date -u -d "-${{ inputs.minutes }} minutes" +%Y-%m-%dT%H:%M:%SZ)" --output json             | jq -r --arg p "$PREFIX-" '.AlarmHistoryItems[] | select(.AlarmName|startswith($p)) | "\(.Timestamp)	\(.HistoryItemType)	\(.AlarmName)	\(.HistorySummary)"'
+          aws cloudwatch describe-alarm-history --max-records 100 --history-item-type StateUpdate             --start-date "$(date -u -d "-${{ inputs.minutes }} minutes" +%Y-%m-%dT%H:%M:%SZ)" --output json             | jq -r --arg p "$PREFIX-" '.AlarmHistoryItems[] | select(.AlarmName|startswith($p)) | "\(.Timestamp)	\(.HistoryItemType)	\(.AlarmName)	\(.HistorySummary)"'
           echo "=== custom metrics seen (Nordwind/Bank) ==="
           aws cloudwatch list-metrics --namespace Nordwind/Bank --output json | jq -c '.Metrics[] | {MetricName, Dimensions}'
           echo "=== SNS alarms topic subscriptions ==="

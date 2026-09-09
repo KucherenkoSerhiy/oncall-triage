@@ -36,11 +36,36 @@ resource "aws_sqs_queue_redrive_allow_policy" "alerts_dlq" {
   })
 }
 
+# Deliberately NOT encrypted with the AWS-managed SNS key: CloudWatch alarms
+# cannot publish to a topic encrypted with `alias/aws/sns` (its key policy
+# does not grant cloudwatch.amazonaws.com), which silently dropped every
+# alarm notification in M4's first live probe (#47). A customer-managed key
+# would fix it for ~$1/month; alarm state changes carry no customer data,
+# transit is TLS, and the topic accepts publishes only from this account's
+# CloudWatch (policy below) - so the always-free option is the right trade.
 resource "aws_sns_topic" "alarms" {
-  name              = "${local.name_prefix}-alarms"
-  kms_master_key_id = "alias/aws/sns" # AWS-managed key: free, no extra KMS cost
+  #checkov:skip=CKV_AWS_26:CloudWatch alarms cannot publish to topics encrypted with the AWS-managed SNS key; a CMK costs ~$1/month for a payload with no customer data (#47)
+  name = "${local.name_prefix}-alarms"
 
   tags = local.tags.alarms
+}
+
+resource "aws_sns_topic_policy" "alarms" {
+  arn = aws_sns_topic.alarms.arn
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "CloudWatchAlarmsPublish"
+      Effect    = "Allow"
+      Principal = { Service = "cloudwatch.amazonaws.com" }
+      Action    = "sns:Publish"
+      Resource  = aws_sns_topic.alarms.arn
+      Condition = {
+        StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        ArnLike      = { "aws:SourceArn" = "arn:aws:cloudwatch:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:alarm:${local.name_prefix}-*" }
+      }
+    }]
+  })
 }
 
 resource "aws_sns_topic_subscription" "alarms_to_ingest" {
