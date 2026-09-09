@@ -137,6 +137,15 @@ current commit as a new image, but the explicit `worker_image_sha` input
 wins over the freshly-built one, so the Lambda points at the older,
 already-verified image.
 
+### Image format
+
+The `image` job builds with `provenance: false` / `sbom: false`. Lambda
+accepts only a single-platform image manifest; buildx's default provenance
+attestation wraps the push in an OCI image index and `CreateFunction`
+fails with "image manifest, config or layer media type ... is not
+supported". If a tag was pushed without those flags, it cannot be fixed in
+place (tags are immutable) - push the next commit instead.
+
 ## One-time account prerequisites (outside Terraform)
 
 Some AWS services create a *service-linked role* the first time they are
