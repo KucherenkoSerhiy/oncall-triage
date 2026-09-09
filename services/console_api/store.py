@@ -13,12 +13,17 @@ Table schemas (Terraform provisioning comes in a later spec):
 * Known-issues table: partition key ``service`` (S), sort key ``issue_id``
   (S, ULID). Attributes: ``pattern`` (S), ``explanation`` (S), ``taught_by``
   (S), ``created_at`` (S, RFC 3339 UTC).
+* Bank-faults table (``bank/aws/common.py`` reads it too): partition key
+  ``service`` (S). Attributes: ``mode`` (S), ``until`` (N, epoch seconds),
+  ``set_at`` (N, epoch seconds), ``set_by`` (S).
 """
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
 from services.ingest.canonical import new_alert_id
 
@@ -91,3 +96,28 @@ class ConsoleStore:
             ReturnValues="ALL_OLD",
         )
         return "Attributes" in response
+
+
+class FaultStore:
+    def __init__(self, faults_table: Table) -> None:
+        self._faults = faults_table
+
+    def list_faults(self) -> list[dict]:
+        now = time.time()
+        items = self._faults.scan().get("Items", [])
+        return [{**dict(item), "active": float(item["until"]) > now} for item in items]  # type: ignore[arg-type]
+
+    def set_fault(self, service: str, mode: str, minutes: float, set_by: str) -> dict[str, Any]:
+        now = time.time()
+        item: dict[str, Any] = {
+            "service": service,
+            "mode": mode,
+            "until": Decimal(str(now + minutes * 60)),
+            "set_at": Decimal(str(now)),
+            "set_by": set_by,
+        }
+        self._faults.put_item(Item=item)
+        return item
+
+    def clear_fault(self, service: str) -> None:
+        self._faults.delete_item(Key={"service": service})

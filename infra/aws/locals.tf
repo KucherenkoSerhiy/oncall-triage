@@ -6,13 +6,18 @@ locals {
   console_origin = "https://${var.domain}"
 
   tags = {
-    store   = { c4_container = "store" }
-    queue   = { c4_container = "queue" }
-    alarms  = { c4_container = "alarms" }
-    ingest  = { c4_container = "ingest" }
-    api     = { c4_container = "api" }
-    worker  = { c4_container = "worker" }
-    console = { c4_container = "console" }
-    secrets = { c4_container = "secrets" }
+    store       = { c4_container = "store" }
+    queue       = { c4_container = "queue" }
+    alarms      = { c4_container = "alarms" }
+    ingest      = { c4_container = "ingest" }
+    api         = { c4_container = "api" }
+    worker      = { c4_container = "worker" }
+    console     = { c4_container = "console" }
+    secrets     = { c4_container = "secrets" }
+    payments    = { c4_container = "payments" }
+    ledger      = { c4_container = "ledger" }
+    auth        = { c4_container = "auth" }
+    faults      = { c4_container = "faults" }
+    ledgerQueue = { c4_container = "ledgerQueue" }
   }
 }

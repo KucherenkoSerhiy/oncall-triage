@@ -33,9 +33,11 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
 
         awsEstate = softwareSystem "Nordwind serverless estate (AWS)" "Three bank services on Lambda with CloudWatch alarms." {
             payments = container "payments" "Card payment authorisation API. Chaos: errors, latency, pool." "AWS Lambda (Python)"
+            ledgerQueue = container "ledger queue" "Decouples payments from ledger posting; DLQ after 5 failed attempts." "SQS + DLQ" "Queue"
             ledger = container "ledger" "Double-entry posting worker fed by SQS. Chaos: reconciliation-mismatch, lag." "AWS Lambda (Python)"
             auth = container "auth" "Token issuance / JWKS. Chaos: jwks-rotation, lockouts." "AWS Lambda (Python)"
             alarms = container "alarm topic" "CloudWatch alarm state changes fan out here." "SNS" "Queue"
+            faults = container "faults" "One fault flag per service, set by bankops chaos or the console API." "DynamoDB" "Database"
         }
 
         azureEstate = softwareSystem "Nordwind serverless estate (Azure)" "One bank service on Azure Functions, Azure Monitor alerts, and the always-on alert forwarder." {
@@ -65,10 +67,16 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         cli -> k8sEstate.cards "chaos: patch ConfigMap" "kubectl"
 
         // AWS estate
+        awsEstate.payments -> awsEstate.ledgerQueue "enqueue authorisation"
+        awsEstate.ledgerQueue -> awsEstate.ledger "triggers"
         awsEstate.payments -> awsEstate.alarms "alarm state change"
         awsEstate.ledger -> awsEstate.alarms "alarm state change"
         awsEstate.auth -> awsEstate.alarms "alarm state change"
         awsEstate.alarms -> triage.ingest "notification" "SNS subscription"
+        awsEstate.payments -> awsEstate.faults "read fault flag"
+        awsEstate.ledger -> awsEstate.faults "read fault flag"
+        awsEstate.auth -> awsEstate.faults "read fault flag"
+        triage.api -> awsEstate.faults "GET/POST/DELETE chaos"
 
         // Azure estate
         azureEstate.notifications -> azureEstate.monitor "telemetry"
@@ -151,12 +159,14 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 }
                 deploymentNode "SQS" "" "Amazon SQS" {
                     containerInstance triage.queue
+                    containerInstance awsEstate.ledgerQueue
                 }
                 deploymentNode "SNS" "" "Amazon SNS" {
                     containerInstance awsEstate.alarms
                 }
                 deploymentNode "DynamoDB" "" "Amazon DynamoDB" {
                     containerInstance triage.store
+                    containerInstance awsEstate.faults
                 }
                 deploymentNode "CloudFront + S3" "triage.serhiykucherenko.dev" "Amazon CloudFront" {
                     containerInstance triage.console

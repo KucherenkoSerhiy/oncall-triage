@@ -6,9 +6,10 @@ import json
 import os
 from typing import Any
 
+from bank.aws.common import VALID_MODES
 from services.console_api.auth import AuthError, check_bearer
 from services.console_api.http import json_response, no_content_response, options_response
-from services.console_api.store import ConsoleStore
+from services.console_api.store import ConsoleStore, FaultStore
 
 _REQUIRED_FIELDS = ("service", "pattern", "explanation")
 
@@ -22,6 +23,13 @@ def _store() -> ConsoleStore:
         resource.Table(os.environ["VERDICTS_TABLE"]),
         resource.Table(os.environ["KNOWN_ISSUES_TABLE"]),
     )
+
+
+def _fault_store() -> FaultStore:
+    import boto3
+
+    resource = boto3.resource("dynamodb")
+    return FaultStore(resource.Table(os.environ["BANK_FAULTS_TABLE"]))
 
 
 def _origin() -> str:
@@ -83,6 +91,38 @@ def _handle_delete_known_issue(
     return no_content_response(origin)
 
 
+def _handle_list_chaos(store: FaultStore, origin: str) -> dict:
+    return json_response(200, store.list_faults(), origin)
+
+
+def _handle_set_chaos(service: str, event: dict, store: FaultStore, origin: str) -> dict:
+    if service not in VALID_MODES:
+        return json_response(404, {"error": f"unknown service: {service}"}, origin)
+
+    try:
+        body = json.loads(event.get("body") or "{}")
+    except json.JSONDecodeError as exc:
+        return json_response(400, {"error": str(exc)}, origin)
+
+    mode = body.get("mode")
+    valid_modes = VALID_MODES[service]
+    if mode not in valid_modes:
+        error = f"invalid mode {mode!r} for {service}; valid modes: {', '.join(valid_modes)}"
+        return json_response(400, {"error": error}, origin)
+
+    minutes = body.get("minutes", 5)
+    record = store.set_fault(service, mode, minutes, set_by="console")
+    return json_response(201, record, origin)
+
+
+def _handle_clear_chaos(service: str, store: FaultStore, origin: str) -> dict:
+    if service not in VALID_MODES:
+        return json_response(404, {"error": f"unknown service: {service}"}, origin)
+
+    store.clear_fault(service)
+    return no_content_response(origin)
+
+
 def lambda_handler(event: dict, context: Any) -> dict:
     method = event["requestContext"]["http"]["method"]
     path = event["rawPath"]
@@ -112,5 +152,11 @@ def lambda_handler(event: dict, context: Any) -> dict:
         return _handle_add_known_issue(event, store, origin)
     if method == "DELETE" and len(segments) == 3 and segments[0] == "known-issues":
         return _handle_delete_known_issue(segments[1], segments[2], store, origin)
+    if method == "GET" and segments == ["chaos"]:
+        return _handle_list_chaos(_fault_store(), origin)
+    if method == "POST" and len(segments) == 2 and segments[0] == "chaos":
+        return _handle_set_chaos(segments[1], event, _fault_store(), origin)
+    if method == "DELETE" and len(segments) == 2 and segments[0] == "chaos":
+        return _handle_clear_chaos(segments[1], _fault_store(), origin)
 
     return json_response(404, {"error": "not found"}, origin)

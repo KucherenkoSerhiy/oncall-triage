@@ -90,16 +90,16 @@ carries the business events inside the Kubernetes estate. Known-issue
 memory ships pre-seeded per service so the known-vs-new split is
 demonstrable on day one, exactly as the repo does today.
 
-| Service | Estate | Pretends to | Failure modes (chaos) | Native alarm |
-|---|---|---|---|---|
-| `payments` | AWS Lambda | card payment authorisation API | `errors` (5xx burst), `latency` (p99 > 2 s), `pool` (connection pool exhausted — the seeded known issue) | CloudWatch on Lambda `Errors`, `Duration` p99 |
-| `ledger` | AWS Lambda ← SQS | double-entry posting worker | `reconciliation-mismatch`, `lag` (queue age) | CloudWatch on SQS `ApproximateAgeOfOldestMessage` |
-| `auth` | AWS Lambda | token issuance / JWKS | `jwks-rotation` (unknown key id), `lockouts` | CloudWatch on custom metric `AuthFailures` |
-| `customer-notifications` | Azure Function | SMS / e-mail fan-out | `provider-429`, `backlog` | Azure Monitor metric alert on Function failures + storage-queue length |
-| `cards-authorization` | Kubernetes (kind) | ISO-8583-ish auth switch; **produces** `card.authorized` | `timeouts`, `issuer-down` | Prometheus rule on request p99 / error ratio |
-| `fraud-scoring` | Kubernetes (kind) | ML scoring; **consumes** `card.authorized`, **produces** `fraud.scored` | `model-drift`, `latency`, `crashloop`, `lag` (stops consuming) | Prometheus rules on `fraud_score_bucket` drift, pod restarts, `kafka_consumergroup_lag` |
-| `open-banking-api` | Kubernetes (kind) | PSD2 third-party API gateway; **consumes** `fraud.scored` | `rate-limit-storm` (429s), `cert-expiry` | Prometheus rules on 429 ratio, `probe_ssl_earliest_cert_expiry` |
-| *(platform)* | Kubernetes (kind) | Kafka broker (Strimzi, KRaft, 1 node), Prometheus, Alertmanager, relay | `broker-down` (scale Kafka to 0) | Alertmanager `KafkaBrokerDown`, `KafkaRelayLag` |
+| Service | Estate | Pretends to | Failure modes (chaos) | Native alarm | Deployed |
+|---|---|---|---|---|---|
+| `payments` | AWS Lambda | card payment authorisation API | `errors` (5xx burst), `latency` (p99 > 2 s), `pool` (connection pool exhausted — the seeded known issue) | CloudWatch on Lambda `Errors`, `Duration` p99 | M4 ✅ |
+| `ledger` | AWS Lambda ← SQS | double-entry posting worker | `reconciliation-mismatch`, `lag` (queue age) | CloudWatch on SQS `ApproximateAgeOfOldestMessage` | M4 ✅ |
+| `auth` | AWS Lambda | token issuance / JWKS | `jwks-rotation` (unknown key id), `lockouts` | CloudWatch on custom metric `AuthFailures` | M4 ✅ |
+| `customer-notifications` | Azure Function | SMS / e-mail fan-out | `provider-429`, `backlog` | Azure Monitor metric alert on Function failures + storage-queue length | M5 |
+| `cards-authorization` | Kubernetes (kind) | ISO-8583-ish auth switch; **produces** `card.authorized` | `timeouts`, `issuer-down` | Prometheus rule on request p99 / error ratio | M6 |
+| `fraud-scoring` | Kubernetes (kind) | ML scoring; **consumes** `card.authorized`, **produces** `fraud.scored` | `model-drift`, `latency`, `crashloop`, `lag` (stops consuming) | Prometheus rules on `fraud_score_bucket` drift, pod restarts, `kafka_consumergroup_lag` | M6 |
+| `open-banking-api` | Kubernetes (kind) | PSD2 third-party API gateway; **consumes** `fraud.scored` | `rate-limit-storm` (429s), `cert-expiry` | Prometheus rules on 429 ratio, `probe_ssl_earliest_cert_expiry` | M6 |
+| *(platform)* | Kubernetes (kind) | Kafka broker (Strimzi, KRaft, 1 node), Prometheus, Alertmanager, relay | `broker-down` (scale Kafka to 0) | Alertmanager `KafkaBrokerDown`, `KafkaRelayLag` | M7 |
 
 ## 4. Architecture
 

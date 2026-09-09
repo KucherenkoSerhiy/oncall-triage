@@ -44,9 +44,9 @@ a chicken-and-egg race on a fresh account - see "Deploy ordering" below.
 
 ## What `infra/aws` deploys
 
-The alert spine (M2) plus the real triage worker (M3): everything needed
-to ingest an alert, queue it, triage it with Claude, and let an operator
-read the result.
+The alert spine (M2), the real triage worker (M3), and the AWS bank estate
+(M4, see below): everything needed to ingest an alert, queue it, triage it
+with Claude, and let an operator read the result.
 
 - **DynamoDB** (`storage.tf`): `alerts`, `verdicts`, `known-issues` -
   provisioned 5/5 capacity (2/2 on GSIs) to stay in the always-free tier.
@@ -79,6 +79,62 @@ generated secrets from SSM:
 aws ssm get-parameter --with-decryption --name /nordwind-triage/demo/ingest-hmac-secret --query Parameter.Value --output text
 aws ssm get-parameter --with-decryption --name /nordwind-triage/demo/console-token --query Parameter.Value --output text
 ```
+
+## What the AWS bank estate deploys
+
+Three tiny Lambdas that pretend to be a bank, plus the fault control plane
+`bankops chaos` and the console API's `/chaos` routes flip on and off
+(`bank.tf`), and the six CloudWatch alarms that turn a fault into a verdict
+(`alarms.tf`):
+
+- **`payments`** (EventBridge `rate(1 minute)`): processes a batch of 5
+  synthetic authorisations and hands each one to `ledger` over the
+  **ledger queue** (SQS + DLQ, `maxReceiveCount` 5). Faults: `errors` (raise,
+  drives the Lambda `Errors` metric), `latency` (sleep 2.5s, drives
+  `Duration`), `pool` (emit `PoolExhausted` then raise).
+- **`ledger`** (SQS event source, batch 5, `ReportBatchItemFailures`):
+  "posts" each authorisation. Faults: `lag` (fail every record so the queue
+  backs up and `ApproximateAgeOfOldestMessage` grows), `reconciliation-mismatch`
+  (emit a metric, still process normally).
+- **`auth`** (EventBridge `rate(1 minute)`): "issues" 20 tokens. Faults:
+  `jwks-rotation` (emit `AuthFailures`, then raise), `lockouts` (emit
+  `AccountLockouts`, still succeed).
+- **`bank-faults`** DynamoDB table (provisioned 1/1): one item per service,
+  `{service, mode, until, set_at, set_by}`, read by `bank/aws/common.py`'s
+  `current_fault()` and written by the console API's `/chaos` routes.
+
+Every Lambda is Python 3.12 on arm64 (128 MB, 10 s timeout), packaged from a
+zip scoped to `bank/` only (`data.archive_file.bank` in `bank.tf`, separate
+from the `services` zip in `lambdas.tf`), with its own role scoped to
+exactly what it touches: read-only on the faults table, `payments` can send
+to the ledger queue, `ledger` can consume it, and all three can
+`cloudwatch:PutMetricData` under a `cloudwatch:namespace = Nordwind/Bank`
+condition (that action accepts no resource ARN).
+
+## Chaos cookbook
+
+Each command below fires a fault that drives one of the six alarms in
+`alarms.tf` into `ALARM`, which publishes to the same SNS topic `ingest`
+subscribes to - expect a verdict on the console within **~3-5 min** (the
+EventBridge schedule / SQS delivery + the alarm's evaluation period + one
+triage-worker invocation):
+
+```bash
+# payments 5xx burst -> nordwind-triage-demo-payments-Errors-Sev2
+python -m cli.bankops chaos payments --mode errors --minutes 5
+
+# ledger falls behind -> nordwind-triage-demo-ledger-ApproximateAgeOfOldestMessage-Sev2
+python -m cli.bankops chaos ledger --mode lag --minutes 5
+
+# auth JWKS rotation gone wrong -> nordwind-triage-demo-auth-AuthFailures-Sev2
+python -m cli.bankops chaos auth --mode jwks-rotation --minutes 5
+```
+
+`python -m cli.bankops chaos --status` prints every active fault and the
+minutes remaining; `python -m cli.bankops chaos <service> --clear` clears
+one early. Faults also self-clear after `--minutes` (default 5) even if
+never cleared explicitly, since `current_fault()` only returns a mode while
+`until` is in the future.
 
 ## Anthropic API key
 
@@ -166,6 +222,57 @@ state.
 - The image is pushed by `deploy.yml`'s `image` job using the OIDC deploy
   role (its existing `ecr:*` grant already covers push) - no separate
   credential or role change needed.
+
+## Decisions taken while shipping the AWS bank estate (M4)
+
+Notes on places where `docs/specs/m4-aws-bank-estate.md` left a choice open.
+
+### The `bank-faults` table name gets the project prefix
+
+Requirement 1 names the table `bank-faults`, but every other resource in
+this stack follows `nordwind-triage-<env>-<component>` (`infra/README.md`
+"Conventions"). The Terraform resource is named
+`${local.name_prefix}-bank-faults`; the literal name only matters to
+`BANK_FAULTS_TABLE`, which every reader (`bank/aws/common.py`,
+`services/console_api/store.py`) gets from an environment variable, not a
+hardcoded string, so the prefix is invisible to application code.
+
+### The bank zip is built the same way as the services zip
+
+Requirement 6 says the Lambda zip is "built from `bank/aws/`". Taken
+literally that would flatten `bank/aws/payments/handler.py` to
+`payments/handler.py` inside the archive, breaking the `bank.aws.payments`
+import path every handler and `bank/aws/common.py` itself relies on.
+Instead `data.archive_file.bank` (`bank.tf`) mirrors
+`data.archive_file.services` (`lambdas.tf`): built from the repo root with
+everything except `bank/` excluded, so the zip's top-level package is
+`bank`, matching the handler dotted paths
+(`bank.aws.payments.handler.lambda_handler` etc.) unchanged.
+
+### Chaos route status codes
+
+The spec doesn't name status codes beyond `201`/`204` for success. An
+unknown `{service}` (not `payments`/`ledger`/`auth`) is `404` on both
+`POST` and `DELETE /chaos/{service}` - there's no such resource to act on.
+An unknown `mode` for a valid service is `400` - the resource exists, the
+request body is invalid. `DELETE` is idempotent: clearing a fault that was
+never set is still `204`, unlike `known-issues`' `404`-on-missing, because
+"no fault" is deliberately not the same case as "not a valid service".
+
+### One source of truth for valid chaos modes
+
+`VALID_MODES` (service -> its modes) lives in `bank/aws/common.py` and is
+imported by both `services/console_api/handler.py` (server-side validation,
+requirement 1) and `cli/bankops/commands.py` (client-side validation,
+requirement 8), rather than duplicating the three-service mapping in three
+places.
+
+### `AlarmDescription` uses `;` after `service=<name>`, not `:`
+
+`services/ingest/adapters/cloudwatch.py`'s `service=([^\s,;]+)` regex stops
+at whitespace, comma or semicolon - not a colon. `alarms.tf`'s descriptions
+read `"service=payments; <sentence>"` so the captured service is exactly
+`payments`, not `payments:`.
 
 ## Decisions taken while shipping the worker image (M3b)
 

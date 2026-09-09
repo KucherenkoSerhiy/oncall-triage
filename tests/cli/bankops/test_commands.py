@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 
 from cli.bankops import client, commands
 from cli.bankops.commands import Config
@@ -147,6 +148,88 @@ def test_teach_exits_1_on_error(monkeypatch):
     )
 
     assert exit_code == 1
+
+
+def test_chaos_status_prints_table(monkeypatch, capsys):
+    canned = [{"service": "payments", "mode": "errors", "until": time.time() + 120}]
+
+    def fake_request(method, url, headers=None, body=None):
+        assert method == "GET"
+        assert url == "https://api.example.com/chaos"
+        return json.dumps(canned).encode()
+
+    monkeypatch.setattr(commands.client, "request", fake_request)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(service=None, mode=None, minutes=5, clear=False, status=True), CONFIG
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "payments" in out
+    assert "errors" in out
+
+
+def test_chaos_sets_a_fault(monkeypatch):
+    captured = {}
+
+    def fake_request(method, url, headers=None, body=None):
+        captured["method"] = method
+        captured["url"] = url
+        captured["body"] = body
+        return json.dumps({"service": "payments", "mode": "errors", "until": 123.0}).encode()
+
+    monkeypatch.setattr(commands.client, "request", fake_request)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(service="payments", mode="errors", minutes=5, clear=False, status=False),
+        CONFIG,
+    )
+
+    assert exit_code == 0
+    assert captured["method"] == "POST"
+    assert captured["url"] == "https://api.example.com/chaos/payments"
+    assert json.loads(captured["body"]) == {"mode": "errors", "minutes": 5}
+
+
+def test_chaos_rejects_invalid_mode_client_side(monkeypatch, capsys):
+    def fake_request(method, url, headers=None, body=None):
+        raise AssertionError("should not make an HTTP call for an invalid mode")
+
+    monkeypatch.setattr(commands.client, "request", fake_request)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service="payments", mode="not-a-mode", minutes=5, clear=False, status=False
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 1
+    out = capsys.readouterr().out
+    assert "errors" in out
+    assert "latency" in out
+    assert "pool" in out
+
+
+def test_chaos_clears_a_fault(monkeypatch):
+    captured = {}
+
+    def fake_request(method, url, headers=None, body=None):
+        captured["method"] = method
+        captured["url"] = url
+        return b""
+
+    monkeypatch.setattr(commands.client, "request", fake_request)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(service="ledger", mode=None, minutes=5, clear=True, status=False),
+        CONFIG,
+    )
+
+    assert exit_code == 0
+    assert captured["method"] == "DELETE"
+    assert captured["url"] == "https://api.example.com/chaos/ledger"
 
 
 def test_known_lists_issues(monkeypatch, capsys):
