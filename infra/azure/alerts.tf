@@ -44,7 +44,7 @@ resource "azurerm_monitor_metric_alert" "notifications_failures" {
   criteria {
     metric_namespace = "microsoft.insights/components"
     metric_name      = "exceptions/count"
-    aggregation      = "Total"
+    aggregation      = "Count" # the only aggregation Azure accepts for exceptions/count (#57)
     operator         = "GreaterThanOrEqual"
     threshold        = 3
   }
@@ -69,7 +69,12 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "provider_429" {
   auto_mitigation_enabled = true
 
   criteria {
-    query                   = "customMetrics | where name == \"provider_429\" | summarize sum(value)"
+    # Workspace-based Application Insights stores custom metrics in the Log
+    # Analytics table AppMetrics (Name / Sum / Max / ItemCount), not the classic
+    # customMetrics schema. A metric-measurement rule needs a named numeric
+    # column to aggregate over the window (#57).
+    query                   = "AppMetrics | where Name == \"provider_429\" | summarize AggregatedValue = sum(Sum) by bin(TimeGenerated, 5m)"
+    metric_measure_column   = "AggregatedValue"
     time_aggregation_method = "Total"
     threshold               = 20
     operator                = "GreaterThanOrEqual"
@@ -100,7 +105,8 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "backlog" {
   auto_mitigation_enabled = true
 
   criteria {
-    query                   = "customMetrics | where name == \"notifications_backlog\" | summarize max(value)"
+    query                   = "AppMetrics | where Name == \"notifications_backlog\" | summarize AggregatedValue = max(Max) by bin(TimeGenerated, 5m)"
+    metric_measure_column   = "AggregatedValue"
     time_aggregation_method = "Maximum"
     threshold               = 100
     operator                = "GreaterThanOrEqual"
