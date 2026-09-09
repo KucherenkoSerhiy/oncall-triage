@@ -180,6 +180,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             deploymentNode "Anthropic" "" "api.anthropic.com" {
                 softwareSystemInstance claude
             }
+            deploymentNode "Cloudflare" "parent zone serhiykucherenko.dev - NS delegation of triage.* to Route 53" "Cloudflare DNS" {
+                infrastructureNode "NS delegation"
+            }
         }
     }
 

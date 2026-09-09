@@ -1,6 +1,17 @@
 output "name_servers" {
-  description = "Create NS records with these four values for `triage` at the parent domain's DNS."
+  description = "Route 53 name servers of the delegated zone (written to the Cloudflare parent zone by dns_delegation.tf)."
   value       = aws_route53_zone.triage.name_servers
+}
+
+output "delegation_records" {
+  description = "NS records created in the Cloudflare parent zone, one per Route 53 name server."
+  value = {
+    for ns, r in cloudflare_dns_record.delegation : ns => {
+      name    = r.name
+      type    = r.type
+      content = r.content
+    }
+  }
 }
 
 output "zone_id" {

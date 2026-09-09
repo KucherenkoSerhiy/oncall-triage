@@ -14,6 +14,10 @@ terraform {
       source  = "hashicorp/random"
       version = ">= 3.6, < 4.0"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = ">= 5.0, < 6.0"
+    }
   }
 
   # bucket and region arrive via -backend-config from deploy.yml
