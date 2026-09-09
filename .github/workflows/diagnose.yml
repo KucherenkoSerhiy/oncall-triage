@@ -74,6 +74,34 @@ jobs:
         run: |
           TODAY=$(date -u +%F)
           aws dynamodb get-item --table-name $PREFIX-alerts --key "{\"alert_id\":{\"S\":\"cap#$TODAY\"}}" --output json             | jq -c '{date: "'"$TODAY"'", item: (.Item // "no verdicts yet today")}'
+      - name: Bank estate - active faults, alarm states + history, SNS delivery
+        run: |
+          echo "=== faults table ==="
+          aws dynamodb scan --table-name $PREFIX-bank-faults --output json | jq -c '.Items[] | map_values(.S // .N)'
+          echo "=== alarms ==="
+          aws cloudwatch describe-alarms --alarm-name-prefix "$PREFIX-" --output json             | jq -r '.MetricAlarms[] | "\(.StateValue)	\(.AlarmName)	\(.StateUpdatedTimestamp)	\(.StateReason[0:120])"'
+          echo "=== alarm history (state changes + actions, newest first) ==="
+          aws cloudwatch describe-alarm-history --alarm-name-prefix "$PREFIX-" --max-records 25             --start-date "$(date -u -d "-${{ inputs.minutes }} minutes" +%Y-%m-%dT%H:%M:%SZ)" --output json             | jq -r '.AlarmHistoryItems[] | "\(.Timestamp)	\(.HistoryItemType)	\(.AlarmName)	\(.HistorySummary)"'
+          echo "=== custom metrics seen (Nordwind/Bank) ==="
+          aws cloudwatch list-metrics --namespace Nordwind/Bank --output json | jq -c '.Metrics[] | {MetricName, Dimensions}'
+          echo "=== SNS alarms topic subscriptions ==="
+          TOPIC=$(aws sns list-topics --query "Topics[?ends_with(TopicArn, ':$PREFIX-alarms')].TopicArn" --output text)
+          aws sns list-subscriptions-by-topic --topic-arn "$TOPIC" --output json | jq -c '.Subscriptions[] | {Protocol, Endpoint, SubscriptionArn}'
+          aws sns get-topic-attributes --topic-arn "$TOPIC" --query 'Attributes.{Confirmed:SubscriptionsConfirmed,Pending:SubscriptionsPending}' --output json
+          echo "=== SNS -> ingest delivery metrics (last window) ==="
+          START=$(date -u -d "-${{ inputs.minutes }} minutes" +%Y-%m-%dT%H:%M:%SZ); END=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          for m in NumberOfMessagesPublished NumberOfNotificationsDelivered NumberOfNotificationsFailed; do
+            v=$(aws cloudwatch get-metric-statistics --namespace AWS/SNS --metric-name $m --dimensions Name=TopicName,Value=$PREFIX-alarms                   --start-time "$START" --end-time "$END" --period $(( ${{ inputs.minutes }} * 60 )) --statistics Sum --query 'Datapoints[0].Sum' --output text)
+            printf '%-32s %s
+' "$m" "${v:-0}"
+          done
+      - name: Bank Lambda log lines (payments / ledger / auth, errors and reports)
+        run: |
+          SINCE=$(( ($(date +%s) - ${{ inputs.minutes }} * 60) * 1000 ))
+          for lg in payments ledger auth; do
+            echo "=== /aws/lambda/$PREFIX-$lg ==="
+            aws logs filter-log-events --log-group-name "/aws/lambda/$PREFIX-$lg" --start-time "$SINCE"               --query 'events[].[timestamp,message]' --output text | grep -vE "^\S+\s+(START|END)\s" | sort -r | head -n ${{ inputs.log_lines }}
+          done
       - name: Newest worker + ingest log lines
         run: |
           SINCE=$(( ($(date +%s) - ${{ inputs.minutes }} * 60) * 1000 ))
