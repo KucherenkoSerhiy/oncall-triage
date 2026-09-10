@@ -118,12 +118,23 @@ jobs:
         continue-on-error: true
         run: curl -s http://localhost:9090/api/v1/rules > prometheus-rules.json
 
-      - name: Dump bank service logs
+      - name: Dump bank service, bridge, relay and Kafka logs
         if: always()
         continue-on-error: true
         run: |
-          for svc in cards-authorization fraud-scoring open-banking-api; do
-            kubectl -n bank logs "deploy/$svc" --all-containers --tail=1000 > "$svc.log" || true
+          for svc in cards-authorization fraud-scoring open-banking-api alerts-bridge kafka-relay; do
+            kubectl -n bank logs "deploy/$svc" --all-containers --tail=1000 > "$svc.log" 2>&1 || true
+          done
+          for p in $(kubectl -n bank get pods -o name -l strimzi.io/cluster=nordwind-bank 2>/dev/null); do
+            n=${p#pod/}
+            kubectl -n bank logs "$p" --all-containers --tail=400 > "kafka-$n.log" 2>&1 || true
+            kubectl -n bank logs "$p" --all-containers --previous --tail=200 > "kafka-$n.previous.log" 2>&1 || true
+          done
+          kubectl -n kafka logs deploy/strimzi-cluster-operator --tail=400 > strimzi-operator.log 2>&1 || true
+          kubectl -n bank get kafka,kafkanodepool,kafkatopic,kafkauser -o yaml > kafka-resources.yaml 2>&1 || true
+          kubectl get pods -A -o wide > pods.txt 2>&1 || true
+          for p in $(kubectl -n bank get pods --field-selector=status.phase!=Running -o name 2>/dev/null); do
+            echo "=== $p" >> not-running-pods.txt; kubectl -n bank describe "$p" >> not-running-pods.txt 2>&1 || true
           done
 
       - name: Dump cluster events
@@ -139,6 +150,9 @@ jobs:
             alertmanager-alerts.json
             prometheus-rules.json
             *.log
+            kafka-resources.yaml
+            pods.txt
+            not-running-pods.txt
             events.txt
           if-no-files-found: ignore
 
