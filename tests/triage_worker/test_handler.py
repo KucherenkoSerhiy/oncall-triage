@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import boto3
 
-from services.triage_worker import handler
+from services.triage_worker import handler, metrics
 from services.triage_worker.cap import DailyCap
 from services.triage_worker.runner import TriageRunner
 from tests.triage_worker.fake_llm import FakeLlm, build_scripted_agent_tree, text_response
@@ -183,3 +183,29 @@ def test_daily_cap_reached_writes_cap_verdict_without_calling_model(moto_infra, 
 
     alert = _alerts_table(moto_infra).get_item(Key={"alert_id": "A" * 26})["Item"]
     assert alert["status"] == "triaged"
+
+
+def test_daily_cap_reached_calls_the_cap_reached_metric_emitter(moto_infra, monkeypatch):
+    monkeypatch.setenv("DAILY_ALERT_CAP", "1")
+    calls = []
+    monkeypatch.setattr(metrics, "emit_cap_reached", lambda: calls.append(1))
+    verdicts_table = _verdicts_table(moto_infra)
+    today = datetime.now(UTC).date().isoformat()
+    assert DailyCap(verdicts_table).try_acquire(today) is True
+
+    _put_alert(moto_infra, "A" * 26)
+    handler.lambda_handler({"Records": [_record("A" * 26)]}, None)
+
+    assert calls == [1]
+
+
+def test_normal_path_does_not_call_the_cap_reached_metric_emitter(moto_infra, monkeypatch):
+    monkeypatch.setattr(handler, "_runner", _fake_runner())
+    calls = []
+    monkeypatch.setattr(metrics, "emit_cap_reached", lambda: calls.append(1))
+    _put_alert(moto_infra, "A" * 26)
+
+    result = handler.lambda_handler({"Records": [_record("A" * 26)]}, None)
+
+    assert result["batchItemFailures"] == []
+    assert calls == []

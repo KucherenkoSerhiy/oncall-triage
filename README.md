@@ -77,11 +77,11 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 | M2 | Alert spine without LLM: ingest → DynamoDB → SQS, console + API, `bankops fire`, custom domain | ✅ live at [triage.serhiykucherenko.dev](https://triage.serhiykucherenko.dev) (2026-09-09) |
 | M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | ✅ live (2026-09-09): real Claude verdicts via the image-based worker, smoke asserts a model verdict + a known-issue short-circuit |
 | M4 | AWS estate: three services + CloudWatch alarms + chaos | ✅ live (2026-09-10): `bankops chaos payments --mode pool` -> CloudWatch alarm -> verdict `known, ack` in ~4 min, unattended ([#18](https://github.com/KucherenkoSerhiy/oncall-triage/issues/18)) |
-| M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | 🔨 code merged ([#19](https://github.com/KucherenkoSerhiy/oncall-triage/issues/19)), first apply in progress ([#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20), [#52](https://github.com/KucherenkoSerhiy/oncall-triage/issues/52)) |
-| M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ✅ chart merged ([#54](https://github.com/KucherenkoSerhiy/oncall-triage/pull/54)); kind cluster, `task estate-up/down/status/chaos-k8s`, `estate-demo.yml` ([#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
-| M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | ✅ M7a (Strimzi, topics/users/ACLs, producers/consumers, `lag` + `broker-down`) and M7b (alerts-bridge, kafka-relay, route A/B Alertmanager routing, ADR 0015) merged ([#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)) |
+| M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ✅ live (2026-09-10, swedencentral): `bankops chaos customer-notifications --mode provider-429` -> Azure Monitor rule -> forwarder -> verdict `page` in ~7 min ([#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20)) |
+| M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ✅ live (2026-09-10): `estate-demo.yml` builds a kind cluster on a GitHub runner, faults cards-authorization, and the Prometheus alert reaches a verdict `page` through route B in one 20-min job ([#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
+| M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | 🔨 merged ([#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)); live probe = the three-scenario `estate-demo.yml` run, being stabilised ([#76](https://github.com/KucherenkoSerhiy/oncall-triage/issues/76), [#78](https://github.com/KucherenkoSerhiy/oncall-triage/issues/78)) |
 | M8 | C4 drift check against Terraform tags and Helm labels | ⏳ [#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25) |
-| M9 | Hardening: self-observability + SLO, runbooks, rollback drill | ⏳ [#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30) |
+| M9 | Hardening: self-observability + SLO, runbooks, rollback drill | 🔨 M9a self-observability done: dashboard, 5 `ops` alarms, `docs/slo.md` + `slo-reporter`, `CapReached` ([#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)); known-issues export, DNSSEC, OIDC subjects, runbooks and the rollback drill remain ([#27](https://github.com/KucherenkoSerhiy/oncall-triage/issues/27)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30)) |
 
 Every milestone has an offline gate CI runs and a live probe recorded in
 its pull request — the definition of done is in the
@@ -98,6 +98,23 @@ Kafka broker to zero and confirming the verdict for *that* failure travelled
 route B instead. One verdict arrived over Kafka; the one about Kafka did
 not (see [ADR 0015](docs/adr/0015-route-a-relay-instead-of-a-public-kafka-endpoint.md)
 and `docs/runbooks/kubernetes-estate.md`).
+
+## What a reviewer should look at
+
+- **Tests**: `task test` (ruff, mypy, pytest) — moto-backed unit tests for
+  every Lambda; no live AWS/Azure call in the suite.
+- **Terraform gates**: `task tf:validate`, `task tf:lint`, `task tf:scan` —
+  fmt, validate, tflint and checkov on every root; every policy exception
+  lives in [`.checkov.yaml`](.checkov.yaml) with a reason.
+- **Design docs**: [`docs/DESIGN.md`](docs/DESIGN.md) (decisions, cost
+  model, security posture), one [ADR](docs/adr/) per decision, and
+  [`docs/slo.md`](docs/slo.md) — the one SLO this system holds itself to.
+- **Self-observability**: the CloudWatch dashboard and the five `ops`
+  alarms (`infra/aws/observability.tf`) are the fastest way to see whether
+  the live spine is healthy before reaching for `diagnose.yml`.
+
+(Runbooks and the C4 drift gate land in later M9 slices — see the
+roadmap.)
 
 ## Repository map
 

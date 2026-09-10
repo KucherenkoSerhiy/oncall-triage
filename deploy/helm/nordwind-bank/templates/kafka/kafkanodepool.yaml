@@ -22,13 +22,16 @@ spec:
     - controller
   storage:
     type: ephemeral
+  # A KRaft controller JVM does not start reliably under 256Mi (Strimzi sizes
+  # the heap from the limit; the first estate-demo crash-looped both pods -
+  # #75). Memory limits stay, CPU limits go: a CPU-throttled Kafka start-up
+  # misses its readiness probe on a 4-vCPU runner.
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
       cpu: 250m
-      memory: 256Mi
+      memory: 512Mi
+    limits:
+      memory: 512Mi
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaNodePool
@@ -45,9 +48,8 @@ spec:
     type: ephemeral
   resources:
     requests:
-      cpu: 250m
-      memory: 768Mi
-    limits:
       cpu: 500m
-      memory: 768Mi
+      memory: 1Gi
+    limits:
+      memory: 1Gi
 {{- end }}

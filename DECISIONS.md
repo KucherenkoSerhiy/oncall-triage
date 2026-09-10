@@ -1,87 +1,99 @@
-# Implementation decisions (M7a)
+# Implementation decisions (M9a)
 
-The M7a spec (`docs/specs/m7a-strimzi-kafka-wiring.md`) is detailed but
-leaves some concrete choices open. Recorded here rather than guessed
-silently.
+The M9a spec (`docs/specs/m9-hardening.md`, slice 1) is detailed but leaves
+some concrete choices open, or names things slightly differently from how
+the current repository actually numbers/names them. Recorded here rather
+than guessed silently.
 
-- **Strimzi operator version: 0.45.0, Kafka version 3.9.0.** The spec calls
-  for "KRaft annotations" (`strimzi.io/kraft`, `strimzi.io/node-pools`),
-  which are required through Strimzi 0.47.x and become no-op (ignored) from
-  0.48.0 on - so a version in that range keeps the annotations meaningful.
-  0.45.0 is the last version before ZooKeeper support was dropped (0.46.0)
-  and supports Kafka 3.9.0/3.8.1. `metadataVersion: 3.9-IV0` follows the
-  Kafka version. Confirmed against the real
-  `strimzi-kafka-operator` Helm chart's `values.yaml` at that tag (`watchNamespaces`,
-  `watchAnyNamespace`, `resources`) and the real CRD schemas (datreeio
-  CRDs-catalog, commit `ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2`) - `helm
-  template | kubeconform -strict` passes against them.
-- **Kafka resource naming.** The Kafka resource is named
-  `{{ .Release.Name }}` (not `<release>-kafka`) so that Strimzi's generated
-  bootstrap Service, `<clusterName>-kafka-bootstrap`, matches the spec's
-  literal `<release>-kafka-bootstrap.bank.svc:9093`. KafkaNodePool names are
-  fixed literals (not release-templated) since `scripts/chaos_k8s.py`/
-  `estate_status.py` need a name to patch/exec against without discovering
-  the release name first.
-- **Two KafkaNodePools instead of one `dual-role` pool.** The spec calls
-  for a single `dual-role` (`controller` + `broker`) pool, but live-testing
-  against a real Strimzi cluster showed the `broker-down` chaos action
-  (scale a KafkaNodePool to 0) can't work against it: Strimzi's cluster
-  operator refuses to reconcile a Kafka cluster whose node pools sum to 0
-  replicas across the board, so scaling the one combined pool to 0 just
-  loops reconcile errors and leaves the existing broker pod running - a
-  silent no-op fault. Split into `controller` (1 replica, never touched)
-  and `broker` (1 replica, what `broker-down` scales to 0) so the fault
-  actually removes the broker while the KRaft metadata quorum stays up.
-  Deviates from the spec's literal "`dual-role`, 1 replica" pool in order
-  to make the `broker-down` requirement (which the same spec sentence
-  requires) actually work.
-- **kafka-metrics ConfigMap trim.** "Trimmed to broker + topic metrics"
-  means the Strimzi example `kafka-metrics-config.yml`'s generic
-  `kafka.server`/`BrokerTopicMetrics`-shaped rules (which already carry a
-  `topic` label via the first "special case" pattern), with the
-  KRaft-internals-only sections (`raft-metrics`, `raft-channel-metrics`,
-  `broker-metadata-metrics`) dropped - those are Raft consensus internals,
-  not broker or topic throughput/latency metrics.
-- **Event payload shapes.** `card.authorized`:
-  `{"txn_id", "amount", "currency": "EUR", "result", "ts"}` - `txn_id` a
-  UUID4, `amount` a random 1.00-500.00 (matching the synthetic-latency style
-  already used for the service's other random values), `ts` epoch seconds.
-  `fraud.scored`: `{"txn_id", "score", "ts"}`, produced by fraud-scoring's
-  consumer handler using the exact scoring distribution `work()` already
-  used (`_score()`, extracted so both paths share it).
-- **`ConsumerLoop`'s handler owns committing.** `handle_message(consumer,
-  message)` (not just `handle_message(message)`) so fraud-scoring can commit
-  only after a successful publish to `fraud.scored`, while open-banking-api
-  commits right after counting - two different commit policies sharing one
-  loop implementation.
-- **Redpanda contract tests: real `confluent_kafka` clients, not
-  `KafkaSettings`.** The contract tests build plain `bootstrap.servers`-only
-  producers/consumers (via `_shared.kafka.KafkaPublisher`/`ConsumerLoop`
-  directly) rather than exercising `KafkaSettings.client_config()`'s
-  SASL_SSL/SCRAM path, since Redpanda's testcontainers image isn't
-  configured with SCRAM/TLS - `security.protocol=SASL_SSL` +
-  `ssl.ca.location` are unit-tested against `KafkaSettings` directly instead
-  (`tests/bank/k8s/test_kafka.py`). Redpanda image pinned to
-  `redpandadata/redpanda:v25.3.17`. Each contract test builds a group-lag
-  comparison via `confluent_kafka.admin.AdminClient.list_consumer_group_offsets`
-  + a throwaway consumer's `get_watermark_offsets`, since the spec allows
-  "Redpanda's admin API (or `rpk`)" for that.
-- **`estate_status.py --kafka`'s admin client wiring.** The `admin` user's
-  password comes from its generated Secret; the truststore is the cluster
-  CA cert Secret's `ca.p12` (mounted into the broker pod's own filesystem at
-  the Strimzi-conventional `/opt/kafka/cluster-ca-certs/ca.p12`, with the
-  store password at the `ca.password` key of the same Secret,
-  `<release>-cluster-ca-cert`) - built into a throwaway
-  `/tmp/admin.properties` inside the broker pod via `kubectl exec ... sh -c`.
-  `ssl.endpoint.identification.algorithm=` (empty) is required in that
-  properties file: connecting to `localhost:9093` from inside the broker
-  pod otherwise fails TLS hostname verification, since the broker's
-  certificate SAN doesn't cover "localhost" - found and fixed after
-  live-testing against a real cluster.
-- **`task estate-up` namespace ordering.** The Strimzi operator chart's
-  `watchNamespaces: [bank]` value makes it create RoleBindings in `bank` at
-  install time, so `bank` must exist before installing
-  `strimzi-kafka-operator`, not just before `nordwind-bank` (which creates
-  it via `--create-namespace`) later - found live-testing on a fresh kind
-  cluster. `task estate-up` now runs a `kubectl create namespace bank`
-  (idempotent, dry-run/apply) ahead of the Strimzi install.
+- **"`docs/DESIGN.md` section 8" means the Cost model section, which is
+  actually numbered 9.** The spec's prose always pairs the number with a
+  description - `"docs/DESIGN.md section 8"` and, once, `"section 8 (cost
+  model)"` - but `DESIGN.md`'s actual section 8 is "Security posture";
+  section 9 is "Cost model". Milestones between when the spec was written
+  and today (M7/M7a's Kafka sections) most likely shifted the numbering.
+  Treated the parenthetical description as authoritative over the number
+  and updated section 9 (Cost model): the alarm count, the ~$0.10/month
+  11th-alarm delta, and a link to `docs/slo.md`.
+- **The 11th-alarm delta is ~$0.10/month, not the "~$0.30/month" requirement
+  8 names.** The spec's own intro paragraph gives the correct figure
+  ("accept ~$0.10/month per extra alarm"), matching real CloudWatch
+  pricing: $0.10/alarm-month for *standard*-resolution alarms (period >=
+  60s, what all five ops alarms use) beyond the free 10, versus
+  $0.30/alarm-month only for *high-resolution* alarms (period < 60s) -
+  none of these are. `$0.30` is also the exact figure the pre-existing
+  `docs/DESIGN.md` Cost model table already used for an 11th *custom
+  metric* (a different line item), which is almost certainly what
+  requirement 8 actually reused by mistake. Went with the intro
+  paragraph's (and reality's) $0.10.
+- **Accepted the 11th alarm's ~$0.10/month rather than combining alarms
+  via metric math.** The spec offers both options explicitly. Six bank
+  alarms (M4) + five ops alarms (this slice) = 11, one over the
+  always-free 10. Combining, say, `WorkerErrors` and `WorkerDurationP95`
+  behind one metric-math alarm (an `OR` of two `IF()` breach expressions)
+  would claw the count back to 10, but the resulting alarm can't say
+  *which* signal breached without a second look at the underlying metrics
+  - exactly the ambiguity `alarms.tf`'s existing `AlarmDescription`
+    convention (`service=<name>; <sentence>`) exists to avoid. Five
+  separately-named, separately-actionable alarms are worth the dime;
+  documented in `docs/DESIGN.md` section 9 and `infra/README.md`.
+- **The ops topic's human subscriber is `oncall`, not `operator`, in the
+  C4 model.** The spec's requirement 8 says "ops alarms -> ops topic ->
+  operator" using lower-case, generic "operator". `docs/c4/workspace.dsl`
+  already has two people: `oncall` ("On-call engineer", reads verdicts on
+  the console) and `operator` ("Chaos operator", runs `bankops` to inject
+  faults) - a different role. The ops topic's e-mail subscription pages
+  the person who reads dashboards and consoles, i.e. `oncall`, not the one
+  firing synthetic faults, so the relationship is `triage.ops -> oncall`.
+- **"ops alarms" is modeled as each alarmed-on container feeding
+  `triage.ops` directly, not as a separate "ops alarms" element.** First
+  pass wrongly routed the relationship through the dashboard
+  (`triage.dashboard -> triage.ops`) - the dashboard only visualizes
+  metrics, it doesn't fire alarms. Fixed to mirror the existing
+  `awsEstate.alarms` pattern exactly: `awsEstate.payments/ledger/auth ->
+  awsEstate.alarms "alarm state change"` has the *sources* feed the SNS
+  topic container directly, with no separate "alarms" element in between.
+  `triage.ingest`, `triage.worker` and `triage.queue` (the three
+  containers the five ops alarms actually watch) now feed
+  `triage.ops "alarm state change (...)"` the same way, each relationship
+  naming which of the five alarms it stands for.
+- **`SloAttainment` (and `VerdictLatencyP95`) are skipped, not published as
+  0, on a day with zero triaged alerts.** The spec's test list only pins
+  down "an empty day publishes `AlertsTriaged=0` and no p95" - it's silent
+  on `SloAttainment`. Publishing `SloAttainment=0` on a quiet day would
+  read as "0% of alerts met their SLO" on the dashboard, which misstates
+  "there were no alerts to measure". `build_report()` returns `attainment:
+  None` when the day's triaged-alert count is 0, and
+  `_publish_metrics()` omits both `VerdictLatencyP95` and `SloAttainment`
+  from the `PutMetricData` call whenever their value is `None`, publishing
+  only `AlertsTriaged=0`.
+- **`by_status` GSI + a `received_at BETWEEN` key condition, no new
+  `by_day` GSI.** The spec offers both options ("query the `by_status`
+  index for `triaged` items then filter by date - or add a GSI `by_day`
+  if the scan would be unbounded"). `by_status`'s range key is already
+  `received_at`, so a `Query` with `#status = "triaged" AND received_at
+  BETWEEN <yesterday 00:00Z> AND <today 00:00Z>` returns exactly
+  yesterday's triaged alerts directly from DynamoDB - no client-side date
+  filtering over an unbounded result set, and no new index/write-capacity
+  cost. See the docstring in `bank/ops/slo_reporter/handler.py`.
+- **p95 by nearest-rank, no new dependency.** `_p95()` sorts the day's
+  latencies and picks `round(0.95 * (n-1))` - standard nearest-rank
+  percentile, matching what a handful of daily data points actually
+  supports (no interpolation library pulled in for a Lambda that runs
+  once a day over single-digit-to-low-hundreds of rows).
+- **The error budget's "alerts per day" figure is `var.daily_alert_cap`
+  (500), not a measured live volume.** Nothing in the repository documents
+  actual historical daily alert volume (the estate is chaos-driven and
+  bursty, not continuous production traffic), so `docs/slo.md` grounds the
+  30-day/5% budget against the one concrete, already-documented ceiling
+  (`docs/DESIGN.md` section 9's "worker refuses to call the model past 500
+  alerts/day") as a worst case, while noting actual demo volume is a small
+  fraction of it.
+- **README "what a reviewer should look at" section created in this
+  slice.** M9a's own requirement 4 says to link `docs/slo.md` from it, but
+  that section is really `docs/specs/m9-hardening.md` requirement 7's
+  README demo-script work, out of scope for slice 1 (which covers
+  requirements 1, the alarm half of 2, 8 and 9 only). Added a minimal,
+  honest version now (tests, Terraform gates, design docs, self-
+  observability) rather than leaving the requirement-4 link dangling; a
+  note in the section says runbooks and the C4 drift gate land in later
+  M9 slices.

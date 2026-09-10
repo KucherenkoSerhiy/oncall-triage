@@ -157,14 +157,25 @@ tasks:
         kubectl -n bank create secret generic nordwind-ingest \
           --from-literal=hmac-secret="$INGEST_HMAC_SECRET" \
           --dry-run=client -o yaml | kubectl apply -f -
+      # No --wait here: the service pods mount KafkaUser Secrets that only
+      # exist once Strimzi has brought the cluster up, so a chart-level wait
+      # would time out on ContainerCreating pods (#75). Wait for Kafka first,
+      # then for each Deployment's rollout.
       - helm upgrade --install nordwind-bank deploy/helm/nordwind-bank -n bank --create-namespace
-        --set imageTag=dev --wait --timeout 5m
+        --set imageTag=dev
       - |
         if ! kubectl -n bank wait --for=condition=Ready kafka/nordwind-bank --timeout=600s; then
-          echo "Kafka not Ready after 600s; strimzi-cluster-operator log tail:"
-          kubectl -n kafka logs deploy/strimzi-cluster-operator --tail=200
+          echo "Kafka not Ready after 600s"; kubectl -n bank get pods
+          for p in $(kubectl -n bank get pods -o name | grep -E "broker|controller"); do
+            echo "--- $p"; kubectl -n bank describe "$p" | tail -20; kubectl -n bank logs "$p" --tail=80 || true
+          done
+          echo "--- strimzi-cluster-operator"; kubectl -n kafka logs deploy/strimzi-cluster-operator --tail=120
           exit 1
         fi
+      - |
+        for d in $(kubectl -n bank get deploy -o name); do
+          kubectl -n bank rollout status "$d" --timeout=300s || { kubectl -n bank get pods; kubectl -n bank describe "$d" | tail -30; exit 1; }
+        done
       - 'echo "Prometheus:   http://localhost:9090"'
       - 'echo "Alertmanager: http://localhost:9093"'
       - kubectl get pods -A

@@ -19,6 +19,7 @@ from botocore.exceptions import ClientError
 
 from oncall_triage import tools
 from oncall_triage.stores import AlertRepo, DynamoStore
+from services.triage_worker import metrics
 from services.triage_worker.cap import DailyCap
 from services.triage_worker.runner import TriageResult, TriageRunner
 
@@ -103,6 +104,7 @@ def _process_record(record: dict, alerts_table: Any, verdicts_table: Any, cap: D
         verdict = _verdict_item(alert_id, alert, result)
     else:
         verdict = _cap_verdict_item(alert_id, alert)
+        metrics.emit_cap_reached()
     duration_ms = int((time.monotonic() - start) * 1000)
 
     try:
