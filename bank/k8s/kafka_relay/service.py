@@ -102,14 +102,19 @@ class KafkaRelayService:
     def handle_message(self, consumer: Any, message: Any) -> None:
         """`ConsumerLoop` handler for an `alerts.raw` message.
 
-        Wraps the message as an Alertmanager-shaped payload, HMAC-signs it,
+        Wraps the message as an Alertmanager-shaped payload inside ingest's
+        {source, payload} envelope, HMAC-signs it,
         and POSTs it to ingest with exponential backoff on failure. Commits
         the message either way - after a successful post, or after the last
         retry is exhausted (counted as `relay_dropped_total`) - so one bad
         message can never block the rest of the partition.
         """
         alert = json.loads(message.value())
-        body = json.dumps({"receiver": RECEIVER, "status": "firing", "alerts": [alert]}).encode()
+        # Ingest reads an envelope - {"source": ..., "payload": ...} - and hands
+        # the payload to the adapter named by `source` (services/ingest/handler.py);
+        # a bare Alertmanager payload is a 400 (#86 - the first route-A demo).
+        payload = {"receiver": RECEIVER, "status": "firing", "alerts": [alert]}
+        body = json.dumps({"source": "alertmanager", "payload": payload}).encode()
 
         self.inflight.inc()
         try:
