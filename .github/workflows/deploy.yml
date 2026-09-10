@@ -10,13 +10,13 @@ on:
     # Everything that ends up inside a deployed artifact: Terraform roots, the
     # Lambda zips (archive_file over services/, bank/aws/, oncall_triage/), the
     # worker image, and the probes the smoke job runs (#43).
-    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, .github/workflows/deploy.yml]
+    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, scripts/dns_check.py, .github/workflows/deploy.yml]
   push:
     branches: [master, main]
     # Everything that ends up inside a deployed artifact: Terraform roots, the
     # Lambda zips (archive_file over services/, bank/aws/, oncall_triage/), the
     # worker image, and the probes the smoke job runs (#43).
-    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, .github/workflows/deploy.yml]
+    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, scripts/dns_check.py, .github/workflows/deploy.yml]
   workflow_dispatch:
     inputs:
       root:
@@ -434,6 +434,14 @@ jobs:
           export SMOKE_HMAC_SECRET SMOKE_TOKEN
           python scripts/smoke.py
           echo "SMOKE_TOKEN=$SMOKE_TOKEN" >> "$GITHUB_ENV"
+      - name: DNS check - DNSSEC (ad flag, RRSIG, DS/DNSKEY) and hostname resolution
+        # Non-fatal: DNSSEC validation depends on resolver caches around the
+        # world catching up to the DS record, which can take up to a week
+        # after it is first published (infra/README.md "DNSSEC") - a failure
+        # here in that window is not proof of a broken deploy. Safe to make
+        # this step fatal (drop continue-on-error) once that window passes.
+        continue-on-error: true
+        run: python scripts/dns_check.py
       - name: Chaos probe - one real alarm end to end
         # Manual-only (workflow_dispatch input): sets a fault through the
         # console API, waits for the estate's own alarm to reach the spine

@@ -143,17 +143,22 @@ lag on `card.authorized` climbs steadily; healthy otherwise means at or near
 ### `broker-down` recovery
 
 `broker-down` is a chaos *action* against the platform, not a service fault
-mode: it scales the `broker` `KafkaNodePool` to 0 replicas (the separate
-`controller` pool - the KRaft metadata quorum - is left alone; Strimzi
-refuses to reconcile a cluster whose node pools are all at 0 replicas, so a
-single combined pool can't be scaled to 0 this way), so every
-producer/consumer in the estate starts failing to reach the broker while
-staying up themselves (`/healthz` unaffected).
+mode. It cannot simply scale the `broker` `KafkaNodePool` to 0: Strimzi
+rejects a KRaft cluster without at least one broker replica (#78). Instead it
+pauses the operator's reconciliation of the `Kafka` resource
+(`strimzi.io/pause-reconciliation=true`, waits for `ReconciliationPaused`)
+and deletes the broker's `StrimziPodSet`; nothing recreates the pod while
+reconciliation is paused, so every producer/consumer in the estate starts
+failing to reach the broker while staying up themselves (`/healthz`
+unaffected) and `KafkaBrokerDown` fires. `clear` removes the annotation; the
+operator rebuilds the PodSet and the pod (ephemeral storage - the demo topics
+come back empty). The `controller` pool - the KRaft metadata quorum - is
+never touched.
 
 ```bash
 task chaos-k8s -- kafka broker-down
 task estate-status   # broker pod Terminating/gone; KAFKA_BOOTSTRAP unreachable
-task chaos-k8s -- kafka clear   # scales back to 1 and waits for the broker pod Ready
+task chaos-k8s -- kafka clear   # resumes reconciliation and waits for the broker pod Ready
 ```
 
 `bankops chaos --estate kubernetes kafka --mode broker-down` / `--clear` do

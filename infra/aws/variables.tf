@@ -57,3 +57,9 @@ variable "daily_alert_cap" {
   type        = number
   default     = 500
 }
+
+variable "enable_dnssec" {
+  description = "Create the DNSSEC signing key (KMS, us-east-1), the KSK, zone signing and the DS record at Cloudflare. Off by default: the GitHub deploy role (infra/bootstrap/aws) needs the kms:CreateKey/TagResource/PutKeyPolicy/... actions first, which only a human-applied bootstrap change can grant (#81). Query logging does not depend on this flag."
+  type        = bool
+  default     = false
+}

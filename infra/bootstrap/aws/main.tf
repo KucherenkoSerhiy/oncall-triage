@@ -179,6 +179,22 @@ data "aws_iam_policy_document" "deploy_permissions" {
       "budgets:*",
       "kms:Describe*",
       "kms:List*",
+      # M9c: the DNSSEC signing key (asymmetric, us-east-1). Key *use* stays
+      # with Route 53 via the key policy; the role only manages the key.
+      "kms:CreateKey",
+      "kms:CreateAlias",
+      "kms:UpdateAlias",
+      "kms:DeleteAlias",
+      "kms:PutKeyPolicy",
+      "kms:GetKeyPolicy",
+      "kms:TagResource",
+      "kms:UntagResource",
+      "kms:UpdateKeyDescription",
+      "kms:EnableKey",
+      "kms:DisableKey",
+      "kms:ScheduleKeyDeletion",
+      "kms:CancelKeyDeletion",
+      "kms:GetPublicKey",
       "sts:GetCallerIdentity",
     ]
     resources = ["*"]

@@ -63,31 +63,50 @@ def test_main_valid_mode(monkeypatch):
     assert captured == {"service": "open-banking-api", "mode": "cert-expiry"}
 
 
-def test_scale_kafka_node_pool_builds_correct_command():
+def _recording_run():
     calls = []
 
     def fake_run(argv, check=False):
         calls.append((argv, check))
 
-    chaos_k8s.scale_kafka_node_pool(0, run=fake_run)
-
-    (argv, check) = calls[0]
-    assert check is True
-    assert argv[:6] == ["kubectl", "-n", "bank", "patch", "kafkanodepool", "broker"]
-    assert json.loads(argv[-1]) == {"spec": {"replicas": 0}}
+    return calls, fake_run
 
 
-def test_wait_for_broker_ready_builds_correct_command():
-    calls = []
+def test_pause_annotates_and_waits_for_the_paused_condition():
+    calls, fake_run = _recording_run()
 
-    def fake_run(argv, check=False):
-        calls.append((argv, check))
+    chaos_k8s.pause_kafka_reconciliation(run=fake_run)
+
+    assert [c for _, c in calls] == [True, True]
+    assert calls[0][0] == [
+        "kubectl",
+        "-n",
+        "bank",
+        "annotate",
+        "kafka",
+        "nordwind-bank",
+        "strimzi.io/pause-reconciliation=true",
+        "--overwrite",
+    ]
+    assert calls[1][0][:5] == [
+        "kubectl",
+        "-n",
+        "bank",
+        "wait",
+        "--for=condition=ReconciliationPaused",
+    ]
+    assert "kafka/nordwind-bank" in calls[1][0]
+
+
+def test_wait_for_broker_ready_waits_for_the_podset_then_the_pod():
+    calls, fake_run = _recording_run()
 
     chaos_k8s.wait_for_broker_ready(run=fake_run)
 
-    (argv, check) = calls[0]
-    assert check is True
-    assert argv == [
+    assert calls[0][0][4] == "--for=create"
+    assert "strimzipodset/nordwind-bank-broker" in calls[0][0]
+    assert "strimzipodset/nordwind-bank-broker" in calls[1][0]
+    assert calls[2][0] == [
         "kubectl",
         "-n",
         "bank",
@@ -96,37 +115,39 @@ def test_wait_for_broker_ready_builds_correct_command():
         "pod",
         "-l",
         "strimzi.io/pool-name=broker",
-        "--timeout=180s",
+        "--timeout=600s",
     ]
 
 
-def test_kafka_broker_down_scales_to_zero(monkeypatch):
-    captured = {}
-    monkeypatch.setattr(
-        chaos_k8s,
-        "scale_kafka_node_pool",
-        lambda replicas, run=None: captured.update(replicas=replicas),
-    )
+def test_kafka_broker_down_pauses_then_deletes_the_broker_podset():
+    # Scaling the broker pool to 0 is rejected by Strimzi in KRaft mode (#78):
+    # the outage is produced by pausing reconciliation and deleting the PodSet.
+    calls, fake_run = _recording_run()
 
-    chaos_k8s.kafka_broker_down()
+    chaos_k8s.kafka_broker_down(run=fake_run)
 
-    assert captured == {"replicas": 0}
+    verbs = [argv[3] for argv, _ in calls]
+    assert verbs == ["annotate", "wait", "delete"]
+    assert calls[2][0][4:6] == ["strimzipodset", "nordwind-bank-broker"]
+    assert all(check for _, check in calls)
 
 
-def test_kafka_clear_scales_to_one_and_waits(monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        chaos_k8s,
-        "scale_kafka_node_pool",
-        lambda replicas, run=None: calls.append(("scale", replicas)),
-    )
-    monkeypatch.setattr(
-        chaos_k8s, "wait_for_broker_ready", lambda run=None: calls.append(("wait",))
-    )
+def test_kafka_clear_resumes_reconciliation_then_waits():
+    calls, fake_run = _recording_run()
 
-    chaos_k8s.kafka_clear()
+    chaos_k8s.kafka_clear(run=fake_run)
 
-    assert calls == [("scale", 1), ("wait",)]
+    assert calls[0][0] == [
+        "kubectl",
+        "-n",
+        "bank",
+        "annotate",
+        "kafka",
+        "nordwind-bank",
+        "strimzi.io/pause-reconciliation-",
+        "--overwrite",
+    ]
+    assert [argv[3] for argv, _ in calls] == ["annotate", "wait", "wait", "wait"]
 
 
 def test_main_kafka_broker_down(monkeypatch):

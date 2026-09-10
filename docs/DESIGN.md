@@ -498,9 +498,10 @@ line costs what it does.
 | Application Insights / Log Analytics | **per GB ingested** | < 0.3 GB (5 GB free; $2.30/GB beyond — Azure's classic surprise, so verbose logging stays off) | 0 |
 | Azure Monitor alert rules | per rule / time series | 2 metric rules (10 series free) | ~0.10 |
 | Route 53 hosted zone + ACM certificates | per zone-month; ACM public certs free | one zone for `triage.serhiykucherenko.dev` | 0.50 |
+| KMS asymmetric key (DNSSEC signing) | per key-month; not covered by the KMS free tier | one ECC_NIST_P256 key signing the zone (M9c) | ~1.00 |
 | GitHub Actions | minutes | ≈ 650 of 2,000 free/month on a private repo (unlimited if public) | 0 |
 | Kubernetes (kind) | — | laptop and CI runner | 0 |
-| **Cloud total** | | worst case ≈ $4.60 with 15 extra custom metrics | **≈ 1.6–2.6** |
+| **Cloud total** | | worst case ≈ $5.60 with 15 extra custom metrics | **≈ 2.6–3.6** |
 | Anthropic API *(outside the $10)* | per MTok in / out | 300 alerts × 3 turns × (~3k in + ~700 out) at Haiku 4.5 $1 / $5 per MTok | ≈ 2.5 |
 
 Ruled out and why: EKS ($73/month control plane before a node), any

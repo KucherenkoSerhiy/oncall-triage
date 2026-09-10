@@ -68,7 +68,12 @@ def test_posts_an_alertmanager_shaped_body_with_a_verifiable_hmac_signature():
     assert method == "POST"
     assert url == "https://ingest.example/alerts"
     payload = json.loads(body)
-    assert payload == {"receiver": RECEIVER, "status": "firing", "alerts": [_alert()]}
+    # ingest envelope: the adapter is selected by `source`, the Alertmanager
+    # payload rides inside `payload` (#86).
+    assert payload == {
+        "source": "alertmanager",
+        "payload": {"receiver": RECEIVER, "status": "firing", "alerts": [_alert()]},
+    }
 
     hmac_auth.verify(
         SECRET,

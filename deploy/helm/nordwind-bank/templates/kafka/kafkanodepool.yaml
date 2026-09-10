@@ -1,13 +1,9 @@
 {{- if .Values.kafka.enabled }}
 # Two single-node pools, not one `dual-role` pool: the `broker-down` chaos
-# action (scripts/chaos_k8s.py) scales a KafkaNodePool to 0 replicas, but
-# Strimzi's cluster operator refuses to reconcile a Kafka cluster whose
-# node pools sum to 0 replicas across the board - a combined
-# controller+broker pool scaled to 0 takes the KRaft metadata quorum down
-# with it and the operator just errors out instead of producing a broker
-# outage. Splitting the controller out into its own pool that's never
-# scaled means `broker` can go to 0 on its own and actually reproduce a
-# broker-down outage.
+# action (scripts/chaos_k8s.py) pauses reconciliation and deletes the broker
+# StrimziPodSet (a broker pool cannot be scaled to 0 in KRaft mode - #78).
+# With the controller in its own pool the KRaft metadata quorum survives the
+# outage, so `clear` is a plain resume rather than a cluster rebuild.
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaNodePool

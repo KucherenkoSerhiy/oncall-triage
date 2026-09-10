@@ -22,6 +22,10 @@ on:
         description: worker/ingest log lines to print (newest first)
         type: string
         default: "40"
+      replay_dlq_max:
+        description: "move up to N messages from the alerts DLQ back to the alerts queue (0 = don't; the operator path for a poison-message incident)"
+        type: string
+        default: "0"
 
 permissions:
   id-token: write
@@ -37,6 +41,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
@@ -121,3 +129,11 @@ jobs:
         run: |
           aws dynamodb get-item --table-name $PREFIX-alerts --key "{\"alert_id\":{\"S\":\"${{ inputs.alert_id }}\"}}" --output json \
             | jq '.Item // "not found"'
+      - name: Replay alerts DLQ (M9b - operator path for a poison-message incident, no laptop needed)
+        if: inputs.replay_dlq_max != '0' && inputs.replay_dlq_max != ''
+        run: |
+          pip install --quiet boto3
+          ALERTS_QUEUE_URL=$(aws sqs get-queue-url --queue-name $PREFIX-alerts --query QueueUrl --output text)
+          ALERTS_DLQ_URL=$(aws sqs get-queue-url --queue-name $PREFIX-alerts-dlq --query QueueUrl --output text)
+          BANKOPS_ALERTS_QUEUE_URL="$ALERTS_QUEUE_URL" BANKOPS_ALERTS_DLQ_URL="$ALERTS_DLQ_URL" \
+            python -m cli.bankops replay-dlq --max "${{ inputs.replay_dlq_max }}" --yes

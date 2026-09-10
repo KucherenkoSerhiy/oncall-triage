@@ -139,7 +139,8 @@ jobs:
           kubectl -n kafka logs deploy/strimzi-cluster-operator --tail=400 > strimzi-operator.log 2>&1 || true
           kubectl -n bank get kafka,kafkanodepool,kafkatopic,kafkauser -o yaml > kafka-resources.yaml 2>&1 || true
           kubectl get pods -A -o wide > pods.txt 2>&1 || true
-          for p in $(kubectl -n bank get pods --field-selector=status.phase!=Running -o name 2>/dev/null); do
+          # Not-Running pods plus anything that restarted (a CrashLoopBackOff pod is phase=Running).
+          for p in $(kubectl -n bank get pods -o json | python3 -c 'import json,sys; [print("pod/"+i["metadata"]["name"]) for i in json.load(sys.stdin)["items"] if i["status"].get("phase")!="Running" or any(c.get("restartCount",0)>0 for c in i["status"].get("containerStatuses",[]))]' 2>/dev/null); do
             echo "=== $p" >> not-running-pods.txt; kubectl -n bank describe "$p" >> not-running-pods.txt 2>&1 || true
           done
 

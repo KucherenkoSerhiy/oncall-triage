@@ -31,6 +31,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             dashboard = container "self-observability" "Ingest rate, verdict latency p95, DLQ depth, SLO attainment; five ops alarms." "CloudWatch dashboard" "Deployable"
             ops = container "ops topic" "Human-only: CloudWatch alarm state changes for the triage brain itself, never fed back into ingest." "SNS" "Queue,Deployable"
             sloReporter = container "slo-reporter" "Daily (00:15 UTC): reads yesterday's triaged alerts and verdicts, computes latency p95 and SLO attainment." "AWS Lambda (Python)" "Deployable"
+            dns = container "dns" "DNSSEC-signed; query logs" "Route 53 hosted zone" "Deployable"
+            knownIssuesBucket = container "known-issues bucket" "Weekly JSON export of taught known issues, so the memory survives a table wipe; expires after 30 days." "S3" "Database" "Deployable"
+            knownIssuesExport = container "known-issues-export" "Weekly (Monday 00:30 UTC): scans the known-issues table and writes a dated JSON export to the bucket." "AWS Lambda (Python)" "Deployable"
         }
 
         awsEstate = softwareSystem "Nordwind serverless estate (AWS)" "Three bank services on Lambda with CloudWatch alarms." {
@@ -125,6 +128,8 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         // awsEstate.payments/ledger/auth -> awsEstate.alarms below.
         triage.sloReporter -> triage.store "reads yesterday"
         triage.sloReporter -> triage.dashboard "custom metrics"
+        triage.knownIssuesExport -> triage.store "scans known issues"
+        triage.knownIssuesExport -> triage.knownIssuesBucket "put known-issues-<date>.json"
         triage.ingest -> triage.ops "alarm state change (IngestErrorRatio)"
         triage.worker -> triage.ops "alarm state change (WorkerErrors, WorkerDurationP95, CapReached)"
         triage.queue -> triage.ops "alarm state change (AlertsDlqDepth)"
@@ -152,6 +157,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                     containerInstance awsEstate.ledger
                     containerInstance awsEstate.auth
                     containerInstance triage.sloReporter
+                    containerInstance triage.knownIssuesExport
                 }
                 deploymentNode "API Gateway" "api.triage.serhiykucherenko.dev" "Amazon API Gateway (HTTP API)" {
                     containerInstance triage.api
@@ -171,14 +177,25 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 deploymentNode "CloudFront + S3" "triage.serhiykucherenko.dev" "Amazon CloudFront" {
                     containerInstance triage.console
                 }
+                deploymentNode "S3" "" "Amazon S3" {
+                    containerInstance triage.knownIssuesBucket
+                }
                 deploymentNode "SSM" "" "Parameter Store" {
                     containerInstance triage.secrets
                 }
                 deploymentNode "CloudWatch" "" "Amazon CloudWatch" {
                     containerInstance triage.dashboard
                 }
+                deploymentNode "Route 53" "" "Amazon Route 53" {
+                    containerInstance triage.dns
+                }
                 deploymentNode "ECR" "" "Amazon ECR (Terraform: infra/aws-ecr)" {
                     infrastructureNode "triage-worker image" "Immutable image tagged by git SHA (also `:latest`); built and pushed by deploy.yml's `image` job, run by the Lambda above."
+                }
+            }
+            deploymentNode "AWS (us-east-1)" "" "Terraform: infra/aws (dnssec.tf)" {
+                deploymentNode "KMS" "" "AWS KMS" {
+                    infrastructureNode "DNSSEC signing key" "ECC_NIST_P256 asymmetric key (SIGN_VERIFY); Route 53 requires it in us-east-1 regardless of the stack's own region."
                 }
             }
             deploymentNode "Azure" "swedencentral" "Terraform: infra/azure" {
