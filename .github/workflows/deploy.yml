@@ -382,6 +382,23 @@ jobs:
             -var="notification_email=${{ secrets.BUDGET_EMAIL }}" \
             ${{ steps.worker_var.outputs.flag }} \
             $EXTRA_VARS
+      - name: Verify the Function apps indexed their functions
+        # A zip deploy can "succeed" and still leave an app with no functions
+        # (missing requirements, skipped remote build - #59/#64). Fail the apply
+        # leg here rather than discovering it in a chaos probe an hour later.
+        if: steps.sel.outputs.run == 'true' && matrix.root == 'azure'
+        run: |
+          set -u
+          RG=rg-nordwind-triage-demo
+          for app in nordwind-triage-demo-notifications nordwind-triage-demo-forwarder; do
+            ok=""
+            for i in $(seq 1 20); do
+              fns=$(az functionapp function list -n "$app" -g "$RG" --query "[].name" -o tsv 2>/dev/null | paste -sd' ' -)
+              if [ -n "$fns" ]; then ok=1; echo "$app: $fns"; break; fi
+              sleep 15
+            done
+            [ -n "$ok" ] || { echo "::error::$app exposes no functions 5 min after deploy - check AppTraces for 'Worker failed to index functions'"; exit 1; }
+          done
 
   smoke:
     name: smoke probe
