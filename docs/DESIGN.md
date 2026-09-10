@@ -1,7 +1,13 @@
 # Nordwind Bank — cloud alert triage: design
 
-Status: **approved, v2.1** (2026-09-07) — building. All decisions are
+Status: **approved, v2.2** (2026-09-10) — building. All decisions are
 taken (§2); nothing is open (§12).
+
+Changelog: **v2.2** (2026-09-10, M8) — §4.2's C4Container diagram gained
+the `ops` topic and `slo-reporter` (M9a containers missing since v2.1);
+§10 corrected to describe the static `python-hcl2` / `helm template`
+drift check `scripts/c4_drift.py` actually runs, not
+`terraform show -json` / `helm list -o json`, and lists all ten C4 views.
 
 ## 0. The 20% — if you read nothing else
 
@@ -144,6 +150,8 @@ C4Container
     Container(console, "incident console", "S3 + CloudFront static site", "Live alert list, verdicts, known-issues editor")
     Container(secrets, "secrets", "SSM Parameter Store (SecureString)", "Anthropic key, webhook HMAC secret")
     Container(dash, "self-observability", "CloudWatch dashboard + alarms", "Ingest rate, verdict latency p95, tokens/day, DLQ depth")
+    ContainerQueue(ops, "ops topic", "SNS", "Human-only: CloudWatch alarm state changes for the triage brain itself (M9a)")
+    Container(sloRep, "slo-reporter", "Lambda (Python)", "Daily: latency p95 + SLO attainment from yesterday's verdicts (M9a)")
   }
   Container_Boundary(awsbank, "AWS — serverless estate") {
     Container(svc_aws, "payments · ledger · auth", "Lambdas + CloudWatch alarms", "Emit metrics; fault flag switches on failure modes")
@@ -189,6 +197,11 @@ C4Container
   Rel(worker, claude, "3 agent turns")
   Rel(worker, secrets, "read key")
   Rel(worker, dash, "emits latency + token metrics")
+  Rel(ingest, ops, "alarm state change")
+  Rel(worker, ops, "alarm state change")
+  Rel(queue, ops, "alarm state change (DLQ depth)")
+  Rel(sloRep, store, "reads yesterday")
+  Rel(sloRep, dash, "custom metrics")
   Rel(oncall, console, "browses")
   Rel(console, api, "GET alerts/verdicts; POST known-issue")
   Rel(api, store, "query / put")
@@ -505,15 +518,23 @@ CloudWatch alarm.
 ## 10. Diagrams as code, and keeping them honest
 
 - **Source of truth: `docs/c4/workspace.dsl`** (Structurizr DSL) — one
-  model, four views: system context, containers, worker components,
-  deployment (AWS, Azure, kind). `c4.yml` exports Mermaid + PNG into
-  `docs/c4/generated/`, so GitHub renders them and PRs show diagram diffs.
-- **Drift check in CI**: every Terraform resource carries a
-  `c4_container` tag and every Helm release a `c4_container` label;
-  `scripts/c4_drift.py` compares the set of values from
-  `terraform show -json` and `helm list -o json` against container
-  identifiers in the DSL and fails on any container that exists in one
-  place and not the other. Diagrams that lie fail CI, same as tests.
+  model, ten views: system context, containers, one container view per
+  bank estate (AWS, Azure, Kubernetes), worker components, two dynamic
+  views (route A over Kafka, route B over the forwarder), and deployment
+  (`demo`: AWS + Azure; `kind`: laptop + GitHub Actions runner). `c4.yml`
+  exports Mermaid into `docs/c4/generated/`, so GitHub renders them and
+  PRs show diagram diffs.
+- **Drift check in CI (M8)**: every Terraform resource carries a
+  `c4_container` tag and every Kubernetes workload in
+  `deploy/helm/nordwind-bank` a `nordwind.dev/c4-container` label.
+  `scripts/c4_drift.py` reads both **statically** - `python-hcl2` over the
+  `.tf` source and `helm template`'s local rendering, never
+  `terraform show -json` of a plan/state or a live cluster - and fails
+  when a container the model marks `Deployable` appears in neither, or
+  when Terraform/Helm mention a container the model never declared.
+  `docs/c4/drift-allow.yaml` documents the deliberate exceptions (see
+  [ADR 0016](adr/0016-c4-drift-as-a-merge-gate.md)). Diagrams that lie
+  fail CI, same as tests.
 - The Mermaid blocks in this document are the *design-time* sketch; once
   the DSL exists they are replaced by the generated exports.
 

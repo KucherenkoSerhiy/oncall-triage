@@ -35,6 +35,11 @@ monitoring:
   release: monitoring
 
 services:
+  # c4Container is the container's identifier in docs/c4/workspace.dsl
+  # (nordwind.dev/c4-container's value) - see templates/_helpers.tpl.
   - name: cards-authorization
+    c4Container: cards
   - name: fraud-scoring
+    c4Container: fraud
   - name: open-banking-api
+    c4Container: openBanking

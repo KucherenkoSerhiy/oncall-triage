@@ -94,6 +94,22 @@ tasks:
     cmds:
       - git diff --exit-code -- {{.C4_DIR}}/generated
 
+  c4-drift:
+    desc: Compare workspace.dsl against Terraform c4_container tags and Helm nordwind.dev/c4-container labels (what ci.yml's c4 job enforces with --strict)
+    cmds:
+      - python scripts/c4_drift.py --strict
+
+  adr-index:
+    desc: Regenerate docs/adr/README.md's index table from every ADR's heading
+    cmds:
+      - python scripts/adr_index.py
+
+  adr-index:check:
+    desc: Fail if docs/adr/README.md is stale relative to the ADR files (what ci.yml's c4 job enforces)
+    deps: [adr-index]
+    cmds:
+      - git diff --exit-code -- docs/adr/README.md
+
   helm-lint:
     desc: helm lint the nordwind-bank chart (what ci.yml's helm job runs first)
     cmds:

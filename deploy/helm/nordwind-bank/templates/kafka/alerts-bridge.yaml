@@ -8,7 +8,7 @@ kind: Deployment
 metadata:
   name: alerts-bridge
   labels:
-    {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge") | nindent 4 }}
+    {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge" "c4Container" "alertsBridge") | nindent 4 }}
 spec:
   replicas: 1
   selector:
@@ -17,7 +17,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge") | nindent 8 }}
+        {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge" "c4Container" "alertsBridge") | nindent 8 }}
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -93,7 +93,7 @@ metadata:
   # unprefixed - nothing outside this chart needs to resolve them by name.
   name: {{ .Release.Name }}-alerts-bridge
   labels:
-    {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge") | nindent 4 }}
+    {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge" "c4Container" "alertsBridge") | nindent 4 }}
 spec:
   selector:
     app.kubernetes.io/name: alerts-bridge
@@ -107,7 +107,7 @@ kind: ServiceMonitor
 metadata:
   name: alerts-bridge
   labels:
-    {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge") | nindent 4 }}
+    {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge" "c4Container" "alertsBridge") | nindent 4 }}
     release: {{ .Values.monitoring.release }}
 spec:
   selector:
