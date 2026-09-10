@@ -28,7 +28,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             api = container "console API" "Reads alerts and verdicts; accepts taught known issues. Bearer-token protected (v1)." "AWS Lambda + API Gateway HTTP API"
             console = container "incident console" "Live alert list, verdicts, known-issues editor." "Static site on S3 + CloudFront at triage.serhiykucherenko.dev" "Browser"
             secrets = container "secrets" "Anthropic key and webhook HMAC secret." "SSM Parameter Store (SecureString)"
-            dashboard = container "self-observability" "Ingest rate, verdict latency p50/p95, tokens per day, DLQ depth; SLO 95% of verdicts within 90 s." "CloudWatch dashboard + alarms"
+            dashboard = container "self-observability" "Ingest rate, verdict latency p95, DLQ depth, SLO attainment; five ops alarms." "CloudWatch dashboard"
+            ops = container "ops topic" "Human-only: CloudWatch alarm state changes for the triage brain itself, never fed back into ingest." "SNS" "Queue"
+            sloReporter = container "slo-reporter" "Daily (00:15 UTC): reads yesterday's triaged alerts and verdicts, computes latency p95 and SLO attainment." "AWS Lambda (Python)"
         }
 
         awsEstate = softwareSystem "Nordwind serverless estate (AWS)" "Three bank services on Lambda with CloudWatch alarms." {
@@ -101,6 +103,17 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         triage.console -> triage.api "GET alerts, verdicts; POST known-issue" "HTTPS"
         triage.api -> triage.store "query / put"
 
+        // self-observability (M9a) - mirrors the awsEstate.alarms pattern:
+        // each alarmed-on container feeds the topic directly ("alarm state
+        // change"), the same relationship shape as
+        // awsEstate.payments/ledger/auth -> awsEstate.alarms below.
+        triage.sloReporter -> triage.store "reads yesterday"
+        triage.sloReporter -> triage.dashboard "custom metrics"
+        triage.ingest -> triage.ops "alarm state change (IngestErrorRatio)"
+        triage.worker -> triage.ops "alarm state change (WorkerErrors, WorkerDurationP95, CapReached)"
+        triage.queue -> triage.ops "alarm state change (AlertsDlqDepth)"
+        triage.ops -> oncall "e-mail notification"
+
         // worker internals
         triage.worker.agent -> triage.worker.tools "get_alert, get_recent_alerts, check_known, remember_issue"
         triage.worker.agent -> triage.worker.researcher "transfer: new error"
@@ -122,6 +135,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                     containerInstance awsEstate.payments
                     containerInstance awsEstate.ledger
                     containerInstance awsEstate.auth
+                    containerInstance triage.sloReporter
                 }
                 deploymentNode "API Gateway" "api.triage.serhiykucherenko.dev" "Amazon API Gateway (HTTP API)" {
                     containerInstance triage.api
@@ -132,6 +146,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 }
                 deploymentNode "SNS" "" "Amazon SNS" {
                     containerInstance awsEstate.alarms
+                    containerInstance triage.ops
                 }
                 deploymentNode "DynamoDB" "" "Amazon DynamoDB" {
                     containerInstance triage.store

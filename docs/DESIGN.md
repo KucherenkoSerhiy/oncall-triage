@@ -381,12 +381,18 @@ decision changed · the milestone's live probe (§13) recorded in the PR.
 
 ### 6.4 The triage system watches itself
 
-A CloudWatch dashboard and four alarms, all always-free: alerts ingested
-per hour; verdict latency p50/p95 (ingest → verdict); Claude tokens and
-$/day; DLQ depth. **SLO: 95% of verdicts within 90 s of ingest.** Alarms
-on `DLQ > 0`, worker errors, and the daily LLM cap publish to the same
-SNS topic as the bank's alarms — so the triage system triages alerts
-about itself, which is both a good demo and how you find out it's broken.
+A CloudWatch dashboard (`nordwind-triage-demo`) shows the spine end to
+end: ingest invocations / errors / p95, queue and DLQ depth, worker
+invocations / errors / throttles / p95, API 4xx / 5xx, the bank estate's
+custom metrics, `VerdictLatencyP95`, `SloAttainment` and `CapReached`.
+**SLO ([docs/slo.md](slo.md)): 95 % of alerts receive a verdict within
+5 minutes of arrival**, measured daily by the `slo-reporter` Lambda from
+`received_at` to the verdict's `created_at`. Five ops alarms (ingest error
+ratio, worker errors, DLQ depth, worker p95, daily LLM cap reached) publish
+to a separate, human-only `ops` SNS topic (e-mail) - deliberately **not**
+to the `alarms` topic the bank estates use, so the triage system never
+triages alerts about itself and a broken worker cannot hide its own outage
+(M9a).
 
 ### 6.5 Developer workflow
 
@@ -462,10 +468,10 @@ line costs what it does.
 
 | Line | Meter | Our usage | $/month |
 |---|---|---|---|
-| Lambda (ingest, worker, API, 3 services) | requests + GB-s | ~50k invocations; worker 2 GB × 40 s × 300 alerts ≈ 24k GB-s (6% of always-free) | 0 |
+| Lambda (ingest, worker, API, 3 services, slo-reporter) | requests + GB-s | ~50k invocations; worker 2 GB × 40 s × 300 alerts ≈ 24k GB-s (6% of always-free); slo-reporter adds 1 × 128 MB × ≤60 s/day, negligible | 0 |
 | SQS, SNS, EventBridge | per message | < 100k | 0 |
 | DynamoDB | provisioned units + GB | 3 tables at 5/5, < 1 GB (on-demand mode is *not* free — we choose provisioned) | 0 |
-| CloudWatch | per alarm, per custom metric, GB logs | ≤ 10 alarms, ≤ 10 custom metrics; the 11th metric is $0.30 forever — the line most likely to creep | 0 |
+| CloudWatch | per alarm, per custom metric, GB logs | 11 alarms (6 bank, M4 + 5 ops, M9a) — 1 over the always-free 10, at $0.10/alarm/month; 8 custom metrics (4 `Nordwind/Bank` + 4 `Nordwind/Triage`), still inside the free 10; the next metric or alarm is the line most likely to creep | 0.10 |
 | API Gateway HTTP API | per million calls | < 100k | ~0.10 |
 | S3 + CloudFront | GB stored + egress | console < 1 MB; 1 TB egress always-free | ~0.05 |
 | ECR | GB-month stored | one ~700 MB worker image (ADK's dependency tree) | ~0.07 |
@@ -478,7 +484,7 @@ line costs what it does.
 | Route 53 hosted zone + ACM certificates | per zone-month; ACM public certs free | one zone for `triage.serhiykucherenko.dev` | 0.50 |
 | GitHub Actions | minutes | ≈ 650 of 2,000 free/month on a private repo (unlimited if public) | 0 |
 | Kubernetes (kind) | — | laptop and CI runner | 0 |
-| **Cloud total** | | worst case ≈ $4.50 with 15 extra custom metrics | **≈ 1.5–2.5** |
+| **Cloud total** | | worst case ≈ $4.60 with 15 extra custom metrics | **≈ 1.6–2.6** |
 | Anthropic API *(outside the $10)* | per MTok in / out | 300 alerts × 3 turns × (~3k in + ~700 out) at Haiku 4.5 $1 / $5 per MTok | ≈ 2.5 |
 
 Ruled out and why: EKS ($73/month control plane before a node), any
@@ -486,6 +492,12 @@ always-on VM (≈ $36–72), MSK (≈ $540 minimum), Event Hubs Kafka endpoint
 (Standard tier ≈ $22), Secrets Manager (per-secret fee), Container
 Insights (per-GB). Guardrails: AWS Budget at $8 and Azure budget at $2
 e-mail you; the worker refuses to call the model past 500 alerts/day.
+
+Self-observability (M9a): a free CloudWatch dashboard, five alarms into a
+human-only `ops` SNS topic (`infra/aws/observability.tf`), and the daily
+`slo-reporter` Lambda measuring [the one SLO](slo.md) — verdict latency —
+are all accounted for above; the only real dollar effect is the 11th
+CloudWatch alarm.
 
 ## 10. Diagrams as code, and keeping them honest
 
