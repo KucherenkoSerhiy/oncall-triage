@@ -1,0 +1,6 @@
+# Kept out of the deployment zip (Kudu/Oryx honours .funcignore).
+__pycache__/
+*.pyc
+tests/
+.pytest_cache/
+local.settings.json
