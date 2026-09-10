@@ -29,6 +29,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             console = container "incident console" "Live alert list, verdicts, known-issues editor." "Static site on S3 + CloudFront at triage.serhiykucherenko.dev" "Browser"
             secrets = container "secrets" "Anthropic key and webhook HMAC secret." "SSM Parameter Store (SecureString)"
             dashboard = container "self-observability" "Ingest rate, verdict latency p50/p95, tokens per day, DLQ depth; SLO 95% of verdicts within 90 s." "CloudWatch dashboard + alarms"
+            dns = container "dns" "DNSSEC-signed; query logs" "Route 53 hosted zone"
         }
 
         awsEstate = softwareSystem "Nordwind serverless estate (AWS)" "Three bank services on Lambda with CloudWatch alarms." {
@@ -146,8 +147,16 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 deploymentNode "CloudWatch" "" "Amazon CloudWatch" {
                     containerInstance triage.dashboard
                 }
+                deploymentNode "Route 53" "" "Amazon Route 53" {
+                    containerInstance triage.dns
+                }
                 deploymentNode "ECR" "" "Amazon ECR (Terraform: infra/aws-ecr)" {
                     infrastructureNode "triage-worker image" "Immutable image tagged by git SHA (also `:latest`); built and pushed by deploy.yml's `image` job, run by the Lambda above."
+                }
+            }
+            deploymentNode "AWS (us-east-1)" "" "Terraform: infra/aws (dnssec.tf)" {
+                deploymentNode "KMS" "" "AWS KMS" {
+                    infrastructureNode "DNSSEC signing key" "ECC_NIST_P256 asymmetric key (SIGN_VERIFY); Route 53 requires it in us-east-1 regardless of the stack's own region."
                 }
             }
             deploymentNode "Azure" "swedencentral" "Terraform: infra/azure" {

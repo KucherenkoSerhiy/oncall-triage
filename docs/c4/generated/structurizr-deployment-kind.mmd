@@ -4,61 +4,61 @@ graph LR
   subgraph diagram ["Deployment View: kind"]
     style diagram fill:#ffffff,stroke:#ffffff
 
-    subgraph 163 ["Laptop"]
-      style 163 fill:#ffffff,stroke:#444444,color:#444444
+    subgraph 169 ["Laptop"]
+      style 169 fill:#ffffff,stroke:#444444,color:#444444
 
-      subgraph 164 ["kind cluster"]
-        style 164 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 170 ["kind cluster"]
+        style 170 fill:#ffffff,stroke:#444444,color:#444444
 
-        165["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch.<br />Chaos: timeouts, issuer-down.</div>"]
-        style 165 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        166["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ML scoring. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
-        style 166 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        167["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway.<br />Chaos: rate-limit-storm,<br />cert-expiry.</div>"]
-        style 167 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        168["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes the three services'<br />/metrics every 15s; evaluates<br />the six PrometheusRules.</div>"]
-        style 168 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        172["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-b-forwarder (webhook).</div>"]
+        171["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch.<br />Chaos: timeouts, issuer-down.</div>"]
+        style 171 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        172["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ML scoring. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
         style 172 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      end
-
-    end
-
-    subgraph 174 ["GitHub Actions runner"]
-      style 174 fill:#ffffff,stroke:#444444,color:#444444
-
-      subgraph 175 ["kind cluster"]
-        style 175 fill:#ffffff,stroke:#444444,color:#444444
-
-        176["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch.<br />Chaos: timeouts, issuer-down.</div>"]
-        style 176 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        178["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ML scoring. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
+        173["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway.<br />Chaos: rate-limit-storm,<br />cert-expiry.</div>"]
+        style 173 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        174["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes the three services'<br />/metrics every 15s; evaluates<br />the six PrometheusRules.</div>"]
+        style 174 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        178["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-b-forwarder (webhook).</div>"]
         style 178 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        180["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway.<br />Chaos: rate-limit-storm,<br />cert-expiry.</div>"]
-        style 180 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        182["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes the three services'<br />/metrics every 15s; evaluates<br />the six PrometheusRules.</div>"]
-        style 182 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        190["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-b-forwarder (webhook).</div>"]
-        style 190 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
     end
 
-    168-. "<div>scrape</div><div style='font-size: 70%'></div>" .->165
-    168-. "<div>scrape</div><div style='font-size: 70%'></div>" .->166
-    168-. "<div>scrape</div><div style='font-size: 70%'></div>" .->167
-    168-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->172
-    168-. "<div>scrape</div><div style='font-size: 70%'></div>" .->176
-    168-. "<div>scrape</div><div style='font-size: 70%'></div>" .->178
-    168-. "<div>scrape</div><div style='font-size: 70%'></div>" .->180
-    182-. "<div>scrape</div><div style='font-size: 70%'></div>" .->165
-    182-. "<div>scrape</div><div style='font-size: 70%'></div>" .->166
-    182-. "<div>scrape</div><div style='font-size: 70%'></div>" .->167
-    182-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->172
-    182-. "<div>scrape</div><div style='font-size: 70%'></div>" .->176
-    182-. "<div>scrape</div><div style='font-size: 70%'></div>" .->178
-    182-. "<div>scrape</div><div style='font-size: 70%'></div>" .->180
-    168-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->190
-    182-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->190
+    subgraph 180 ["GitHub Actions runner"]
+      style 180 fill:#ffffff,stroke:#444444,color:#444444
+
+      subgraph 181 ["kind cluster"]
+        style 181 fill:#ffffff,stroke:#444444,color:#444444
+
+        182["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch.<br />Chaos: timeouts, issuer-down.</div>"]
+        style 182 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        184["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ML scoring. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
+        style 184 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        186["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway.<br />Chaos: rate-limit-storm,<br />cert-expiry.</div>"]
+        style 186 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        188["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes the three services'<br />/metrics every 15s; evaluates<br />the six PrometheusRules.</div>"]
+        style 188 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        196["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-b-forwarder (webhook).</div>"]
+        style 196 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      end
+
+    end
+
+    174-. "<div>scrape</div><div style='font-size: 70%'></div>" .->171
+    174-. "<div>scrape</div><div style='font-size: 70%'></div>" .->172
+    174-. "<div>scrape</div><div style='font-size: 70%'></div>" .->173
+    174-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->178
+    174-. "<div>scrape</div><div style='font-size: 70%'></div>" .->182
+    174-. "<div>scrape</div><div style='font-size: 70%'></div>" .->184
+    174-. "<div>scrape</div><div style='font-size: 70%'></div>" .->186
+    188-. "<div>scrape</div><div style='font-size: 70%'></div>" .->171
+    188-. "<div>scrape</div><div style='font-size: 70%'></div>" .->172
+    188-. "<div>scrape</div><div style='font-size: 70%'></div>" .->173
+    188-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->178
+    188-. "<div>scrape</div><div style='font-size: 70%'></div>" .->182
+    188-. "<div>scrape</div><div style='font-size: 70%'></div>" .->184
+    188-. "<div>scrape</div><div style='font-size: 70%'></div>" .->186
+    174-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->196
+    188-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->196
 
   end

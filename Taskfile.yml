@@ -165,6 +165,11 @@ tasks:
     cmds:
       - python scripts/estate_status.py {{.CLI_ARGS}}
 
+  dns-check:
+    desc: Verify DNSSEC (ad flag, RRSIG, DS/DNSKEY match) and hostname resolution for the delegated zone
+    cmds:
+      - python scripts/dns_check.py
+
   chaos-k8s:
     desc: 'Patch a Kubernetes bank service''s fault mode (task chaos-k8s -- cards-authorization timeouts|clear) or the kafka broker (task chaos-k8s -- kafka broker-down|clear)'
     cmds:

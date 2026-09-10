@@ -81,7 +81,7 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 | M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ✅ live (2026-09-10): `estate-demo.yml` builds a kind cluster on a GitHub runner, faults cards-authorization, and the Prometheus alert reaches a verdict `page` through route B in one 20-min job ([#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
 | M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | 🔨 Strimzi + wiring merged ([#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23)); route A in progress ([#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)) |
 | M8 | C4 drift check against Terraform tags and Helm labels | ⏳ [#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25) |
-| M9 | Hardening: self-observability + SLO, runbooks, rollback drill | ⏳ [#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30) |
+| M9 | Hardening: self-observability + SLO, Route 53 DNSSEC + query logs (M9c), runbooks, rollback drill | ⏳ [#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30) |
 
 Every milestone has an offline gate CI runs and a live probe recorded in
 its pull request — the definition of done is in the

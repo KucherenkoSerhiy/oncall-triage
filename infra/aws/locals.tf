@@ -19,5 +19,6 @@ locals {
     auth        = { c4_container = "auth" }
     faults      = { c4_container = "faults" }
     ledgerQueue = { c4_container = "ledgerQueue" }
+    dns         = { c4_container = "dns" }
   }
 }
