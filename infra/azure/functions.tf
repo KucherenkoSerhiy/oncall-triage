@@ -114,12 +114,15 @@ resource "azurerm_linux_function_app" "notifications" {
 
   # CONSOLE_TOKEN/INGEST_HMAC_SECRET land here as plaintext app settings -
   # the accepted v1 trade-off (infra/README.md, mirrors the Lambda
-  # environment on AWS). WEBSITE_RUN_FROM_PACKAGE + SCM_DO_BUILD_DURING_DEPLOYMENT
-  # make Oryx install requirements.txt from the zip_deploy_file below.
+  # environment on AWS). ENABLE_ORYX_BUILD + SCM_DO_BUILD_DURING_DEPLOYMENT
+  # make the SCM side install requirements.txt when the zip_deploy_file below
+  # lands (a remote Oryx build). WEBSITE_RUN_FROM_PACKAGE=1 would skip that
+  # build and run the raw zip - which left azure-monitor-opentelemetry missing
+  # and the worker unable to index the timer function (#59).
   app_settings = {
     CHAOS_URL                      = "https://api.triage.serhiykucherenko.dev/chaos"
     CONSOLE_TOKEN                  = var.console_token
-    WEBSITE_RUN_FROM_PACKAGE       = "1"
+    ENABLE_ORYX_BUILD              = "true"
     SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
   }
 
@@ -158,7 +161,7 @@ resource "azurerm_linux_function_app" "forwarder" {
   app_settings = {
     INGEST_URL                     = "https://api.triage.serhiykucherenko.dev/alerts"
     INGEST_HMAC_SECRET             = var.ingest_hmac_secret
-    WEBSITE_RUN_FROM_PACKAGE       = "1"
+    ENABLE_ORYX_BUILD              = "true"
     SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
   }
 

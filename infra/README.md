@@ -136,7 +136,7 @@ Alertmanager route B) call into.
   `zip_deploy_file` built by `data.archive_file.functions` from its own
   `bank/azure/<app>/` directory plus `bank/azure/_shared/` copied in as a
   sibling folder at the zip root (see `bank/azure/README.md`'s
-  "sibling-import trick"); `WEBSITE_RUN_FROM_PACKAGE = "1"` and
+  "sibling-import trick"); `ENABLE_ORYX_BUILD = "true"` and
   `SCM_DO_BUILD_DURING_DEPLOYMENT = "true"` make Oryx install each app's
   `requirements.txt` on deploy. **The first deploy takes ~3 minutes to
   warm** (Oryx build + cold start) before the timer trigger starts firing.
