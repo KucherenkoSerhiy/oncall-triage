@@ -69,6 +69,11 @@ alertmanager:
 prometheus:
   prometheusSpec:
     scrapeInterval: 15s
+    # Rendered per run by scripts/render_alertmanager_values.py: the label
+    # travels on every alert, so consecutive demo runs never share an
+    # ingest fingerprint (30-minute dedup window) - #71.
+    externalLabels:
+      cluster: "__CLUSTER_LABEL__"
     # Opens the rule/ServiceMonitor selectors so kube-prometheus-stack
     # picks up nordwind-bank's PrometheusRule and ServiceMonitors
     # regardless of namespace or the `release: monitoring` label - see
