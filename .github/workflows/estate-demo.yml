@@ -47,11 +47,13 @@ jobs:
 
       - name: Install kind (checksum-verified)
         run: |
-          curl -sSLo kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
-          curl -sSLo kind.sha256sum "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64.sha256sum"
-          echo "$(cat kind.sha256sum)  kind" | sha256sum -c -
-          chmod +x kind
-          sudo mv kind /usr/local/bin/kind
+          # The .sha256sum file already names the asset ("<hash>  kind-linux-amd64"),
+          # so download under that name and check the file as published (#62).
+          curl -sSLo kind-linux-amd64 "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          curl -sSLo kind-linux-amd64.sha256sum "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64.sha256sum"
+          sha256sum -c kind-linux-amd64.sha256sum
+          chmod +x kind-linux-amd64
+          sudo mv kind-linux-amd64 /usr/local/bin/kind
 
       - uses: azure/setup-helm@v4
         with:
@@ -59,10 +61,10 @@ jobs:
 
       - name: Install kubeconform (checksum-verified)
         run: |
-          curl -sSLo kubeconform.tar.gz "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          curl -sSLo kubeconform-linux-amd64.tar.gz "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
           curl -sSLo CHECKSUMS "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/CHECKSUMS"
           grep "kubeconform-linux-amd64.tar.gz$" CHECKSUMS | sha256sum -c -
-          tar -xzf kubeconform.tar.gz kubeconform
+          tar -xzf kubeconform-linux-amd64.tar.gz kubeconform
           sudo mv kubeconform /usr/local/bin/kubeconform
 
       - uses: hashicorp/setup-terraform@v4
