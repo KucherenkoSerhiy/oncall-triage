@@ -305,6 +305,22 @@ data "aws_iam_policy_document" "triage_worker_inline" {
     ]
     resources = [aws_sqs_queue.alerts.arn]
   }
+
+  # PutMetricData accepts no resource ARN; scoped instead by the namespace
+  # condition (same pattern as the bank Lambdas' EmitBankMetrics statement,
+  # bank.tf). Emits CapReached when the daily LLM cap short-circuits a
+  # verdict (services/triage_worker/metrics.py).
+  statement {
+    sid       = "EmitTriageMetrics"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = ["Nordwind/Triage"]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "triage_worker" {

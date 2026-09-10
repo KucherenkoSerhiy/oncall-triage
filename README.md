@@ -81,7 +81,7 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 | M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ✅ live (2026-09-10): `estate-demo.yml` builds a kind cluster on a GitHub runner, faults cards-authorization, and the Prometheus alert reaches a verdict `page` through route B in one 20-min job ([#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
 | M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | 🔨 Strimzi + wiring merged ([#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23)); route A in progress ([#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)) |
 | M8 | C4 drift check against Terraform tags and Helm labels | ⏳ [#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25) |
-| M9 | Hardening: self-observability + SLO, runbooks, rollback drill | ⏳ [#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30) |
+| M9 | Hardening: self-observability + SLO, runbooks, rollback drill | 🔨 M9a self-observability done: dashboard, 5 `ops` alarms, `docs/slo.md` + `slo-reporter`, `CapReached` ([#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)); known-issues export, DNSSEC, OIDC subjects, runbooks and the rollback drill remain ([#27](https://github.com/KucherenkoSerhiy/oncall-triage/issues/27)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30)) |
 
 Every milestone has an offline gate CI runs and a live probe recorded in
 its pull request — the definition of done is in the
@@ -89,6 +89,23 @@ its pull request — the definition of done is in the
 [GitHub milestones](https://github.com/KucherenkoSerhiy/oncall-triage/milestones)
 with one issue per pull-request-sized slice (`M5a`, `M5b`, ...); the
 specs the slices are built from live in [`docs/specs/`](docs/specs/).
+
+## What a reviewer should look at
+
+- **Tests**: `task test` (ruff, mypy, pytest) — moto-backed unit tests for
+  every Lambda; no live AWS/Azure call in the suite.
+- **Terraform gates**: `task tf:validate`, `task tf:lint`, `task tf:scan` —
+  fmt, validate, tflint and checkov on every root; every policy exception
+  lives in [`.checkov.yaml`](.checkov.yaml) with a reason.
+- **Design docs**: [`docs/DESIGN.md`](docs/DESIGN.md) (decisions, cost
+  model, security posture), one [ADR](docs/adr/) per decision, and
+  [`docs/slo.md`](docs/slo.md) — the one SLO this system holds itself to.
+- **Self-observability**: the CloudWatch dashboard and the five `ops`
+  alarms (`infra/aws/observability.tf`) are the fastest way to see whether
+  the live spine is healthy before reaching for `diagnose.yml`.
+
+(Runbooks and the C4 drift gate land in later M9 slices — see the
+roadmap.)
 
 ## Repository map
 

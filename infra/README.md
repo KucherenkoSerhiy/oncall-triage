@@ -121,6 +121,42 @@ to the ledger queue, `ledger` can consume it, and all three can
 `cloudwatch:PutMetricData` under a `cloudwatch:namespace = Nordwind/Bank`
 condition (that action accepts no resource ARN).
 
+## Self-observability (M9a)
+
+`observability.tf` gives an operator one place to look before reaching for
+`diagnose.yml`: a CloudWatch dashboard (`aws_cloudwatch_dashboard`, named
+after `local.name_prefix`) with ingest/worker/API Gateway/queue metrics,
+the bank estate's four `Nordwind/Bank` metrics, and the SLO widgets below;
+and five alarms into a **human-only** `ops` SNS topic (e-mail subscription
+to `var.notification_email`) — deliberately *not* the `alarms` topic
+(`messaging.tf`), since alarms about the triage brain itself feeding back
+into ingest would have the brain triage itself:
+
+| Alarm | Fires when |
+|---|---|
+| `ops-IngestErrorRatio` | ingest's `Errors / Invocations` > 5% over 5 min (metric math, guarded against a 0-invocation divide) |
+| `ops-WorkerErrors` | the triage worker's `Errors` >= 3 over 15 min |
+| `ops-AlertsDlqDepth` | the alerts DLQ has >= 1 message |
+| `ops-WorkerDurationP95` | the triage worker's p95 `Duration` > 60s over 5 min |
+| `ops-CapReached` | `Nordwind/Triage`'s `CapReached` custom metric >= 1 over 5 min — `var.daily_alert_cap` is short-circuiting verdicts |
+
+`CapReached` is emitted by `services/triage_worker/metrics.py` on the cap
+short-circuit path only (`handler.py`); the worker's IAM role gained
+`cloudwatch:PutMetricData` scoped to the `Nordwind/Triage` namespace, same
+condition-based pattern as the bank Lambdas' `Nordwind/Bank` metrics.
+
+A daily Lambda, `slo-reporter` (`bank.ops.slo_reporter.handler`, own IAM
+role, 128 MB, 60s, EventBridge `cron(15 0 * * ? *)`), reads yesterday's
+triaged alerts and verdicts and publishes `VerdictLatencyP95`,
+`AlertsTriaged` and `SloAttainment` — the SLO itself, what counts, and the
+error budget are in [`docs/slo.md`](../docs/slo.md).
+
+**Cost**: the dashboard is free (first one). Five ops alarms plus
+`alarms.tf`'s six bank alarms put the account at 11 CloudWatch alarms — one
+over the always-free 10, at ~$0.10/month; every custom metric (4
+`Nordwind/Bank` + 4 `Nordwind/Triage` = 8) still fits the free 10. See
+`docs/DESIGN.md` section 9 ("Cost model").
+
 ## What `infra/azure` deploys
 
 The Azure half of the bank estate (M5): one Function app pretending to be
