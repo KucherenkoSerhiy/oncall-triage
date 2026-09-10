@@ -10,6 +10,7 @@
 - [ ] No CRITICAL from trivy, no HIGH from checkov
 - [ ] Docs / ADR updated if a decision changed
 - [ ] Live probe for the milestone recorded below (or "n/a - offline change")
+- [ ] If this PR changes `infra/bootstrap/*`: `deploy.yml` never plans or applies those roots, so paste each changed root's `terraform plan` output below (or "n/a - no bootstrap change")
 
 ## Live probe
 
