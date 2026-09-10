@@ -36,7 +36,9 @@ _VERDICT_TIMEOUT_SECONDS = 600
 _VERDICT_POLL_SECONDS = 5
 # broker-down's last hop (kafka clear -> broker pod Ready again) has its own
 # budget, separate from the alert/verdict waits above.
-_BROKER_READY_TIMEOUT_SECONDS = 300
+_BROKER_READY_TIMEOUT_SECONDS = (
+    600  # resume -> reconcile -> PodSet -> pod Ready took ~4 min locally
+)
 
 _M7_SCENARIOS = ("fraud-lag", "broker-down")
 _SCENARIOS = ("cards-timeouts", *_M7_SCENARIOS)
@@ -261,7 +263,9 @@ def run_broker_down(
         )
         _require_route(alert, "B")
     finally:
-        chaos_k8s.scale_kafka_node_pool(1, run=run)
+        # Recovery = resume the operator's reconciliation and wait for the
+        # broker PodSet + pod to come back (scripts/chaos_k8s.py, #78).
+        chaos_k8s.resume_kafka_reconciliation(run=run)
         chaos_k8s.wait_for_broker_ready(run=run, timeout=f"{_BROKER_READY_TIMEOUT_SECONDS}s")
         print("kafka broker cleared, pod Ready")
     return alert

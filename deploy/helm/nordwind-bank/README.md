@@ -93,11 +93,12 @@ cluster named after the Helm release (so the bootstrap Service is
 `<release>-cluster-ca-cert`):
 
 - Two `KafkaNodePool`s, not one combined `dual-role` pool: `controller` (1
-  replica, ephemeral storage, 256 Mi/250m, never scaled) and `broker` (1
-  replica, ephemeral storage, 768 Mi memory / 500m CPU - this is the one
-  `broker-down` scales to 0). They're split because Strimzi refuses to
-  reconcile a cluster whose node pools sum to 0 replicas across the board,
-  so a combined pool can't be scaled to 0 to simulate a broker outage.
+  replica, ephemeral storage, 512 Mi, never touched) and `broker` (1 replica,
+  ephemeral storage, 1 Gi). `broker-down` (`scripts/chaos_k8s.py`) pauses
+  the operator's reconciliation and deletes the broker's StrimziPodSet - a
+  broker pool cannot be scaled to 0 in KRaft mode (#78) - so keeping the
+  controller in its own pool means the metadata quorum survives the outage
+  and recovery is a plain resume.
 - `Kafka` - listener `tls` on 9093 with `scram-sha-512`,
   `authorization.type: simple` (`admin` is the sole `superUser`),
   `metricsConfig` pointing at the `kafka-metrics` ConfigMap (the Strimzi

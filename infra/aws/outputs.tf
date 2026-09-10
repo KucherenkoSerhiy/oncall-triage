@@ -53,3 +53,13 @@ output "console_token_parameter" {
   description = "SSM parameter name holding the console/bankops bearer token (read with --with-decryption)."
   value       = aws_ssm_parameter.console_token.name
 }
+
+output "dnssec_ds_record" {
+  description = "DS record to publish at the parent (key tag, algorithm, digest type, digest) - also what dns_check.py compares the Cloudflare DS against."
+  value       = var.enable_dnssec ? "${aws_route53_key_signing_key.triage[0].key_tag} ${aws_route53_key_signing_key.triage[0].signing_algorithm_type} ${aws_route53_key_signing_key.triage[0].digest_algorithm_type} ${aws_route53_key_signing_key.triage[0].digest_value}" : "DNSSEC not enabled (enable_dnssec=false)"
+}
+
+output "dns_query_log_group" {
+  description = "CloudWatch Logs group receiving Route 53 query logs for the delegated zone."
+  value       = aws_cloudwatch_log_group.dns_queries.name
+}

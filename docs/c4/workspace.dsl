@@ -31,6 +31,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             dashboard = container "self-observability" "Ingest rate, verdict latency p95, DLQ depth, SLO attainment; five ops alarms." "CloudWatch dashboard"
             ops = container "ops topic" "Human-only: CloudWatch alarm state changes for the triage brain itself, never fed back into ingest." "SNS" "Queue"
             sloReporter = container "slo-reporter" "Daily (00:15 UTC): reads yesterday's triaged alerts and verdicts, computes latency p95 and SLO attainment." "AWS Lambda (Python)"
+            dns = container "dns" "DNSSEC-signed; query logs" "Route 53 hosted zone"
             knownIssuesBucket = container "known-issues bucket" "Weekly JSON export of taught known issues, so the memory survives a table wipe; expires after 30 days." "S3" "Database"
             knownIssuesExport = container "known-issues-export" "Weekly (Monday 00:30 UTC): scans the known-issues table and writes a dated JSON export to the bucket." "AWS Lambda (Python)"
         }
@@ -185,8 +186,16 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 deploymentNode "CloudWatch" "" "Amazon CloudWatch" {
                     containerInstance triage.dashboard
                 }
+                deploymentNode "Route 53" "" "Amazon Route 53" {
+                    containerInstance triage.dns
+                }
                 deploymentNode "ECR" "" "Amazon ECR (Terraform: infra/aws-ecr)" {
                     infrastructureNode "triage-worker image" "Immutable image tagged by git SHA (also `:latest`); built and pushed by deploy.yml's `image` job, run by the Lambda above."
+                }
+            }
+            deploymentNode "AWS (us-east-1)" "" "Terraform: infra/aws (dnssec.tf)" {
+                deploymentNode "KMS" "" "AWS KMS" {
+                    infrastructureNode "DNSSEC signing key" "ECC_NIST_P256 asymmetric key (SIGN_VERIFY); Route 53 requires it in us-east-1 regardless of the stack's own region."
                 }
             }
             deploymentNode "Azure" "swedencentral" "Terraform: infra/azure" {
