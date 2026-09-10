@@ -32,6 +32,8 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             ops = container "ops topic" "Human-only: CloudWatch alarm state changes for the triage brain itself, never fed back into ingest." "SNS" "Queue"
             sloReporter = container "slo-reporter" "Daily (00:15 UTC): reads yesterday's triaged alerts and verdicts, computes latency p95 and SLO attainment." "AWS Lambda (Python)"
             dns = container "dns" "DNSSEC-signed; query logs" "Route 53 hosted zone"
+            knownIssuesBucket = container "known-issues bucket" "Weekly JSON export of taught known issues, so the memory survives a table wipe; expires after 30 days." "S3" "Database"
+            knownIssuesExport = container "known-issues-export" "Weekly (Monday 00:30 UTC): scans the known-issues table and writes a dated JSON export to the bucket." "AWS Lambda (Python)"
         }
 
         awsEstate = softwareSystem "Nordwind serverless estate (AWS)" "Three bank services on Lambda with CloudWatch alarms." {
@@ -126,6 +128,8 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         // awsEstate.payments/ledger/auth -> awsEstate.alarms below.
         triage.sloReporter -> triage.store "reads yesterday"
         triage.sloReporter -> triage.dashboard "custom metrics"
+        triage.knownIssuesExport -> triage.store "scans known issues"
+        triage.knownIssuesExport -> triage.knownIssuesBucket "put known-issues-<date>.json"
         triage.ingest -> triage.ops "alarm state change (IngestErrorRatio)"
         triage.worker -> triage.ops "alarm state change (WorkerErrors, WorkerDurationP95, CapReached)"
         triage.queue -> triage.ops "alarm state change (AlertsDlqDepth)"
@@ -153,6 +157,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                     containerInstance awsEstate.ledger
                     containerInstance awsEstate.auth
                     containerInstance triage.sloReporter
+                    containerInstance triage.knownIssuesExport
                 }
                 deploymentNode "API Gateway" "api.triage.serhiykucherenko.dev" "Amazon API Gateway (HTTP API)" {
                     containerInstance triage.api
@@ -171,6 +176,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 }
                 deploymentNode "CloudFront + S3" "triage.serhiykucherenko.dev" "Amazon CloudFront" {
                     containerInstance triage.console
+                }
+                deploymentNode "S3" "" "Amazon S3" {
+                    containerInstance triage.knownIssuesBucket
                 }
                 deploymentNode "SSM" "" "Parameter Store" {
                     containerInstance triage.secrets

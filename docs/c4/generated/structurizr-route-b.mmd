@@ -4,20 +4,20 @@ graph LR
   subgraph diagram ["Dynamic View: Nordwind Kubernetes estate (kind)"]
     style diagram fill:#ffffff,stroke:#ffffff
 
-    subgraph 30 ["Nordwind serverless estate (Azure)"]
-      style 30 fill:#ffffff,stroke:#131921,color:#131921
+    subgraph 32 ["Nordwind serverless estate (Azure)"]
+      style 32 fill:#ffffff,stroke:#131921,color:#131921
 
-      34["<div style='font-weight: bold'>alert forwarder</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>Receives Azure Monitor<br />action-group calls and<br />Alertmanager route-B<br />webhooks, signs with HMAC,<br />posts to ingest.</div>"]
-      style 34 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      36["<div style='font-weight: bold'>alert forwarder</div><div style='font-size: 70%; margin-top: 0px'>[Container: Azure Function (Python)]</div><div style='font-size: 80%; margin-top:10px'>Receives Azure Monitor<br />action-group calls and<br />Alertmanager route-B<br />webhooks, signs with HMAC,<br />posts to ingest.</div>"]
+      style 36 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
-    subgraph 35 ["Nordwind Kubernetes estate (kind)"]
-      style 35 fill:#ffffff,stroke:#131921,color:#131921
+    subgraph 37 ["Nordwind Kubernetes estate (kind)"]
+      style 37 fill:#ffffff,stroke:#131921,color:#131921
 
-      43["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services, Kafka, and<br />kafka-exporter; evaluates the<br />eleven PrometheusRules.</div>"]
-      style 43 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      44["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-a-kafka by default;<br />Kafka's own alerts<br />(KafkaBrokerDown,<br />KafkaRelayLag,<br />AlertsBridgeDown,<br />KafkaRelayDown) take<br />route-b-forwarder instead.</div>"]
-      style 44 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      45["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services, Kafka, and<br />kafka-exporter; evaluates the<br />eleven PrometheusRules.</div>"]
+      style 45 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      46["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-a-kafka by default;<br />Kafka's own alerts<br />(KafkaBrokerDown,<br />KafkaRelayLag,<br />AlertsBridgeDown,<br />KafkaRelayDown) take<br />route-b-forwarder instead.</div>"]
+      style 46 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
     subgraph 5 ["Alert Triage"]
@@ -27,8 +27,8 @@ graph LR
       style 6 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
-    43-. "<div>1. KafkaBrokerDown fires</div><div style='font-size: 70%'></div>" .->44
-    44-. "<div>2. route B webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->34
-    34-. "<div>3. HTTPS + HMAC</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
+    45-. "<div>1. KafkaBrokerDown fires</div><div style='font-size: 70%'></div>" .->46
+    46-. "<div>2. route B webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->36
+    36-. "<div>3. HTTPS + HMAC</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
 
   end

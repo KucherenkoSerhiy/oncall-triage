@@ -4,19 +4,19 @@ graph LR
   subgraph diagram ["Dynamic View: Nordwind Kubernetes estate (kind)"]
     style diagram fill:#ffffff,stroke:#ffffff
 
-    subgraph 35 ["Nordwind Kubernetes estate (kind)"]
-      style 35 fill:#ffffff,stroke:#131921,color:#131921
+    subgraph 37 ["Nordwind Kubernetes estate (kind)"]
+      style 37 fill:#ffffff,stroke:#131921,color:#131921
 
-      39["<div style='font-weight: bold'>kafka</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi (KRaft)]</div><div style='font-size: 80%; margin-top:10px'>Business event backbone and<br />alert transport:<br />card.authorized,<br />fraud.scored, alerts.raw.</div>"]
-      style 39 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      41["<div style='font-weight: bold'>alerts-bridge</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Alertmanager webhook<br />receiver; produces one Kafka<br />message per alert to<br />alerts.raw (route A's first<br />hop).</div>"]
+      41["<div style='font-weight: bold'>kafka</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi (KRaft)]</div><div style='font-size: 80%; margin-top:10px'>Business event backbone and<br />alert transport:<br />card.authorized,<br />fraud.scored, alerts.raw.</div>"]
       style 41 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      42["<div style='font-weight: bold'>kafka-relay</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes alerts.raw,<br />HMAC-signs, and POSTs to<br />ingest (route A's second<br />hop).</div>"]
-      style 42 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      43["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services, Kafka, and<br />kafka-exporter; evaluates the<br />eleven PrometheusRules.</div>"]
+      43["<div style='font-weight: bold'>alerts-bridge</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Alertmanager webhook<br />receiver; produces one Kafka<br />message per alert to<br />alerts.raw (route A's first<br />hop).</div>"]
       style 43 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      44["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-a-kafka by default;<br />Kafka's own alerts<br />(KafkaBrokerDown,<br />KafkaRelayLag,<br />AlertsBridgeDown,<br />KafkaRelayDown) take<br />route-b-forwarder instead.</div>"]
+      44["<div style='font-weight: bold'>kafka-relay</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes alerts.raw,<br />HMAC-signs, and POSTs to<br />ingest (route A's second<br />hop).</div>"]
       style 44 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      45["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services, Kafka, and<br />kafka-exporter; evaluates the<br />eleven PrometheusRules.</div>"]
+      style 45 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      46["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-a-kafka by default;<br />Kafka's own alerts<br />(KafkaBrokerDown,<br />KafkaRelayLag,<br />AlertsBridgeDown,<br />KafkaRelayDown) take<br />route-b-forwarder instead.</div>"]
+      style 46 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
     subgraph 5 ["Alert Triage"]
@@ -26,10 +26,10 @@ graph LR
       style 6 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
-    43-. "<div>1. rule fires</div><div style='font-size: 70%'></div>" .->44
-    44-. "<div>2. route A webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->41
-    41-. "<div>3. produce alerts.raw</div><div style='font-size: 70%'></div>" .->39
-    42-. "<div>4. consume alerts.raw</div><div style='font-size: 70%'></div>" .->39
-    42-. "<div>5. HTTPS + HMAC</div><div style='font-size: 70%'></div>" .->6
+    45-. "<div>1. rule fires</div><div style='font-size: 70%'></div>" .->46
+    46-. "<div>2. route A webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->43
+    43-. "<div>3. produce alerts.raw</div><div style='font-size: 70%'></div>" .->41
+    44-. "<div>4. consume alerts.raw</div><div style='font-size: 70%'></div>" .->41
+    44-. "<div>5. HTTPS + HMAC</div><div style='font-size: 70%'></div>" .->6
 
   end
