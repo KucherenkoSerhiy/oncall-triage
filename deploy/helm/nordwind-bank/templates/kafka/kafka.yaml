@@ -32,6 +32,24 @@ spec:
       transaction.state.log.min.isr: 1
       default.replication.factor: 1
       min.insync.replicas: 1
+    # A 4-vCPU GitHub runner shares its CPU between kind's control plane,
+    # Prometheus, Strimzi and two Kafka JVMs: with Strimzi's default probes
+    # (15 s initial delay, 3 failures) both nodes were killed mid-start-up
+    # and crash-looped (#76). Generous probes and an explicit, modest heap
+    # let a slow start finish; locally the same values are simply unused.
+    jvmOptions:
+      -Xms: 256m
+      -Xmx: 384m
+    livenessProbe:
+      initialDelaySeconds: 120
+      timeoutSeconds: 10
+      periodSeconds: 20
+      failureThreshold: 10
+    readinessProbe:
+      initialDelaySeconds: 30
+      timeoutSeconds: 10
+      periodSeconds: 10
+      failureThreshold: 30
     metricsConfig:
       type: jmxPrometheusExporter
       valueFrom:
