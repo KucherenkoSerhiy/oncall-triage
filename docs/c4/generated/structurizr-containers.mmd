@@ -14,6 +14,8 @@ graph LR
     style 22 fill:#1c2530,stroke:#131921,color:#ffffff
     29["<div style='font-weight: bold'>Nordwind serverless estate (Azure)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>One bank service on Azure<br />Functions, Azure Monitor<br />alerts, and the always-on<br />alert forwarder.</div>"]
     style 29 fill:#1c2530,stroke:#131921,color:#ffffff
+    34["<div style='font-weight: bold'>Nordwind Kubernetes estate (kind)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Three bank services plus a<br />Kafka backbone on Kubernetes,<br />with Prometheus and<br />Alertmanager routing alerts<br />over Kafka (route A) or<br />straight to the forwarder<br />(route B, Kafka's own<br />alerts). Runs in kind on a<br />laptop or a GitHub Actions<br />runner.</div>"]
+    style 34 fill:#1c2530,stroke:#131921,color:#ffffff
 
     subgraph 5 ["Alert Triage"]
       style 5 fill:#ffffff,stroke:#131921,color:#131921
@@ -40,14 +42,7 @@ graph LR
       style 8 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
-    1-. "<div>reads verdicts, teaches known<br />issues</div><div style='font-size: 70%'>[HTTPS]</div>" .->17
-    4-. "<div>fire: synthetic alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
-    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[Lambda invoke]</div>" .->22
-    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->29
-    22-. "<div>notification</div><div style='font-size: 70%'>[SNS subscription]</div>" .->6
-    16-. "<div>GET/POST/DELETE chaos</div><div style='font-size: 70%'></div>" .->22
-    29-. "<div>GET /chaos (bearer)</div><div style='font-size: 70%'>[HTTPS]</div>" .->16
-    29-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
+    34-. "<div>route B (Kafka's own alerts)</div><div style='font-size: 70%'>[HTTPS]</div>" .->29
     6-. "<div>put alert</div><div style='font-size: 70%'></div>" .->15
     6-. "<div>enqueue alert id</div><div style='font-size: 70%'></div>" .->7
     7-. "<div>triggers</div><div style='font-size: 70%'></div>" .->8
@@ -63,5 +58,15 @@ graph LR
     8-. "<div>alarm state change<br />(WorkerErrors,<br />WorkerDurationP95,<br />CapReached)</div><div style='font-size: 70%'></div>" .->20
     7-. "<div>alarm state change<br />(AlertsDlqDepth)</div><div style='font-size: 70%'></div>" .->20
     20-. "<div>e-mail notification</div><div style='font-size: 70%'></div>" .->1
+    1-. "<div>reads verdicts, teaches known<br />issues</div><div style='font-size: 70%'>[HTTPS]</div>" .->17
+    4-. "<div>fire: synthetic alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
+    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[Lambda invoke]</div>" .->22
+    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->29
+    4-. "<div>chaos: patch ConfigMap</div><div style='font-size: 70%'>[kubectl]</div>" .->34
+    22-. "<div>notification</div><div style='font-size: 70%'>[SNS subscription]</div>" .->6
+    16-. "<div>GET/POST/DELETE chaos</div><div style='font-size: 70%'></div>" .->22
+    29-. "<div>GET /chaos (bearer)</div><div style='font-size: 70%'>[HTTPS]</div>" .->16
+    29-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
+    34-. "<div>HTTPS + HMAC (route A)</div><div style='font-size: 70%'></div>" .->6
 
   end

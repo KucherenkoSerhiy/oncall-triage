@@ -1,0 +1,123 @@
+{{- if .Values.kafka.enabled }}
+# kafka-relay (M7b, route A's second hop): consumes alerts.raw and HMAC-signs
+# + POSTs to INGEST_URL. Not part of the generic `.Values.services` loop in
+# ../deployment.yaml - it needs the `nordwind-ingest` Secret and the
+# INGEST_URL value below, and only exists when kafka.enabled.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-relay
+  labels:
+    {{- include "nordwind-bank.labels" (dict "name" "kafka-relay") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-relay
+  template:
+    metadata:
+      labels:
+        {{- include "nordwind-bank.labels" (dict "name" "kafka-relay") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kafka-relay
+          image: "nordwind/kafka-relay:{{ .Values.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          env:
+            - name: KAFKA_BOOTSTRAP
+              value: "{{ .Release.Name }}-kafka-bootstrap.bank.svc:9093"
+            - name: KAFKA_USER
+              value: kafka-relay
+            - name: KAFKA_PASSWORD_FILE
+              value: /etc/nordwind/kafka/user/password
+            - name: KAFKA_CA_FILE
+              value: /etc/nordwind/kafka/ca/ca.crt
+            - name: INGEST_URL
+              value: {{ .Values.kafkaRelay.ingestUrl | quote }}
+            - name: INGEST_HMAC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  # `task estate-up` creates this Secret from the SSM parameter
+                  # documented in docs/runbooks/kubernetes-estate.md - the
+                  # chart only ever references it by name, never its value.
+                  name: nordwind-ingest
+                  key: hmac-secret
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: kafka-user
+              mountPath: /etc/nordwind/kafka/user
+              readOnly: true
+            - name: kafka-ca
+              mountPath: /etc/nordwind/kafka/ca
+              readOnly: true
+      volumes:
+        - name: kafka-user
+          secret:
+            secretName: kafka-relay
+        - name: kafka-ca
+          secret:
+            secretName: {{ .Release.Name }}-cluster-ca-cert
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-relay
+  labels:
+    {{- include "nordwind-bank.labels" (dict "name" "kafka-relay") | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: kafka-relay
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kafka-relay
+  labels:
+    {{- include "nordwind-bank.labels" (dict "name" "kafka-relay") | nindent 4 }}
+    release: {{ .Values.monitoring.release }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-relay
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+{{- end }}

@@ -25,6 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from scripts import chaos_k8s
 from scripts.chaos_probe import http
 from scripts.smoke import _DEFAULT_API_BASE, SmokeError
 
@@ -33,6 +34,9 @@ _ALERT_TIMEOUT_SECONDS = 480
 _ALERT_POLL_SECONDS = 10
 _VERDICT_TIMEOUT_SECONDS = 600
 _VERDICT_POLL_SECONDS = 5
+# broker-down's last hop (kafka clear -> broker pod Ready again) has its own
+# budget, separate from the alert/verdict waits above.
+_BROKER_READY_TIMEOUT_SECONDS = 300
 
 _M7_SCENARIOS = ("fraud-lag", "broker-down")
 _SCENARIOS = ("cards-timeouts", *_M7_SCENARIOS)
@@ -175,7 +179,99 @@ def run_cards_timeouts(
     return alert
 
 
-_RUNNERS = {"cards-timeouts": run_cards_timeouts}
+def _require_route(alert: dict, expected: str) -> dict:
+    """Fail loudly if the verdict's alert did not travel the expected route.
+
+    `services/ingest/adapters/alertmanager.py` stamps `labels.route` ("A" if
+    the Alertmanager receiver name contains "kafka", else "B") on every
+    canonical alert - this is the one place a scenario can prove which path
+    an alert actually took, not just that a verdict eventually showed up.
+    """
+    route = alert.get("labels", {}).get("route")
+    if route != expected:
+        raise SmokeError(
+            "wrong-route",
+            f"alert_id={alert['alert_id']} took route {route!r}, expected {expected!r}",
+        )
+    return alert
+
+
+def run_fraud_lag(
+    alertmanager: str,
+    api_base: str,
+    token: str,
+    alert_timeout: float = _ALERT_TIMEOUT_SECONDS,
+    verdict_timeout: float = _VERDICT_TIMEOUT_SECONDS,
+    run=subprocess.run,
+) -> dict:
+    """`lag` on fraud-scoring -> KafkaConsumerLag -> route A (over Kafka)."""
+    service = "fraud-scoring"
+    mode = "lag"
+    alert_name = "KafkaConsumerLag"
+
+    started = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+    set_fault(service, mode, run=run)
+    print(f"fault set: service={service} mode={mode}")
+    try:
+        wait_for_rule_firing(alertmanager, alert_name, timeout=alert_timeout)
+        print(f"{alert_name} firing in Alertmanager")
+        alert = wait_for_spine_verdict(
+            api_base,
+            token,
+            "kubernetes",
+            service,
+            alert_name,
+            not_before=started,
+            timeout=verdict_timeout,
+        )
+        _require_route(alert, "A")
+    finally:
+        clear_fault(service, run=run)
+        print(f"fault cleared on {service}")
+    return alert
+
+
+def run_broker_down(
+    alertmanager: str,
+    api_base: str,
+    token: str,
+    alert_timeout: float = _ALERT_TIMEOUT_SECONDS,
+    verdict_timeout: float = _VERDICT_TIMEOUT_SECONDS,
+    run=subprocess.run,
+) -> dict:
+    """kafka broker-down -> KafkaBrokerDown -> route B (the alert about
+    Kafka can't reliably travel over the thing it's reporting broken)."""
+    service = "kafka"
+    alert_name = "KafkaBrokerDown"
+
+    started = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+    chaos_k8s.kafka_broker_down(run=run)
+    print("fault set: service=kafka mode=broker-down")
+    try:
+        wait_for_rule_firing(alertmanager, alert_name, timeout=alert_timeout)
+        print(f"{alert_name} firing in Alertmanager")
+        alert = wait_for_spine_verdict(
+            api_base,
+            token,
+            "kubernetes",
+            service,
+            alert_name,
+            not_before=started,
+            timeout=verdict_timeout,
+        )
+        _require_route(alert, "B")
+    finally:
+        chaos_k8s.scale_kafka_node_pool(1, run=run)
+        chaos_k8s.wait_for_broker_ready(run=run, timeout=f"{_BROKER_READY_TIMEOUT_SECONDS}s")
+        print("kafka broker cleared, pod Ready")
+    return alert
+
+
+_RUNNERS = {
+    "cards-timeouts": run_cards_timeouts,
+    "fraud-lag": run_fraud_lag,
+    "broker-down": run_broker_down,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -194,10 +290,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{name} (M7)")
         return 0
 
-    if args.scenario in _M7_SCENARIOS:
-        print(f"FAIL: {args.scenario!r} is registered for M7, not implemented yet", file=sys.stderr)
-        return 2
-
     api_base = os.environ.get("API_BASE", _DEFAULT_API_BASE)
     token = os.environ["SMOKE_TOKEN"]
 
@@ -210,8 +302,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     verdict = alert["verdict"]
+    route = alert.get("labels", {}).get("route")
     print(
-        f"OK: alert_id={alert['alert_id']} alert={alert['alert_name']} "
+        f"OK: alert_id={alert['alert_id']} alert={alert['alert_name']} route={route} "
         f"known={verdict.get('known')} action={verdict['action']} model={verdict['model']}"
     )
     print(f"summary: {verdict.get('summary', '')[:300]}")

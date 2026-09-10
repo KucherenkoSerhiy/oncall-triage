@@ -180,7 +180,7 @@ C4Container
   Rel(bridge, kafka, "produce alerts.raw")
   Rel(kafka, relay, "consume alerts.raw")
   Rel(relay, ingest, "canonical alert", "HTTPS + HMAC")
-  Rel(prom, fwd, "route B: KafkaBrokerDown, relay lag, or route A failing", "HTTPS")
+  Rel(prom, fwd, "route B: KafkaBrokerDown, KafkaRelayLag, AlertsBridgeDown, KafkaRelayDown", "HTTPS")
   Rel(fwd, ingest, "canonical alert", "HTTPS + HMAC")
   Rel(ingest, store, "put alert")
   Rel(ingest, queue, "enqueue alert id")
@@ -234,9 +234,12 @@ between them is the demo:
   cross-cloud hop is outbound HTTPS, which works from a laptop, a CI
   runner, or a cluster with no public endpoint.
 - **Route B — over HTTPS**: Alertmanager → `alert forwarder` (Azure
-  Function) → HMAC → `ingest`. For alerts that *cannot* travel over Kafka
-  — `KafkaBrokerDown`, `KafkaRelayLag` — and as fallback when route A's
-  delivery fails. The `broker-down` chaos mode makes it visible: the
+  Function) → HMAC → `ingest`. For the four alerts *about* Kafka itself —
+  `KafkaBrokerDown`, `KafkaRelayLag`, `AlertsBridgeDown`, `KafkaRelayDown` —
+  which cannot reliably travel over the thing they're reporting broken.
+  Alertmanager's routing is a static match on alert name, not a
+  deliver-then-fall-back; everything else defaults to route A. The
+  `broker-down` chaos mode makes it visible: the
   alert about Kafka arrives, and it did not come via Kafka.
 
 ```mermaid

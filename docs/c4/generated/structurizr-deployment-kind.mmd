@@ -4,61 +4,121 @@ graph LR
   subgraph diagram ["Deployment View: kind"]
     style diagram fill:#ffffff,stroke:#ffffff
 
-    subgraph 179 ["Laptop"]
-      style 179 fill:#ffffff,stroke:#444444,color:#444444
+    subgraph 198 ["Laptop"]
+      style 198 fill:#ffffff,stroke:#444444,color:#444444
 
-      subgraph 180 ["kind cluster"]
-        style 180 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 199 ["kind cluster"]
+        style 199 fill:#ffffff,stroke:#444444,color:#444444
 
-        181["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch.<br />Chaos: timeouts, issuer-down.</div>"]
-        style 181 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        182["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ML scoring. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
-        style 182 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        183["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway.<br />Chaos: rate-limit-storm,<br />cert-expiry.</div>"]
-        style 183 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        184["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes the three services'<br />/metrics every 15s; evaluates<br />the six PrometheusRules.</div>"]
-        style 184 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        188["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-b-forwarder (webhook).</div>"]
-        style 188 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        200["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch.<br />Chaos: timeouts, issuer-down.</div>"]
+        style 200 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        201["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ML scoring. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
+        style 201 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        202["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway.<br />Chaos: rate-limit-storm,<br />cert-expiry.</div>"]
+        style 202 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        203["<div style='font-weight: bold'>kafka</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi (KRaft)]</div><div style='font-size: 80%; margin-top:10px'>Business event backbone and<br />alert transport:<br />card.authorized,<br />fraud.scored, alerts.raw.</div>"]
+        style 203 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        207["<div style='font-weight: bold'>kafka-exporter</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi kafka-exporter]</div><div style='font-size: 80%; margin-top:10px'>Exports per-consumer-group<br />lag<br />(kafka_consumergroup_lag).<br />Chaos: broker-down (scales<br />the broker KafkaNodePool to<br />0).</div>"]
+        style 207 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        209["<div style='font-weight: bold'>alerts-bridge</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Alertmanager webhook<br />receiver; produces one Kafka<br />message per alert to<br />alerts.raw (route A's first<br />hop).</div>"]
+        style 209 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        211["<div style='font-weight: bold'>kafka-relay</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes alerts.raw,<br />HMAC-signs, and POSTs to<br />ingest (route A's second<br />hop).</div>"]
+        style 211 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        213["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services, Kafka, and<br />kafka-exporter; evaluates the<br />eleven PrometheusRules.</div>"]
+        style 213 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        221["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-a-kafka by default;<br />Kafka's own alerts<br />(KafkaBrokerDown,<br />KafkaRelayLag,<br />AlertsBridgeDown,<br />KafkaRelayDown) take<br />route-b-forwarder instead.</div>"]
+        style 221 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
     end
 
-    subgraph 190 ["GitHub Actions runner"]
-      style 190 fill:#ffffff,stroke:#444444,color:#444444
+    subgraph 224 ["GitHub Actions runner"]
+      style 224 fill:#ffffff,stroke:#444444,color:#444444
 
-      subgraph 191 ["kind cluster"]
-        style 191 fill:#ffffff,stroke:#444444,color:#444444
+      subgraph 225 ["kind cluster"]
+        style 225 fill:#ffffff,stroke:#444444,color:#444444
 
-        192["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch.<br />Chaos: timeouts, issuer-down.</div>"]
-        style 192 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        194["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ML scoring. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
-        style 194 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        196["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway.<br />Chaos: rate-limit-storm,<br />cert-expiry.</div>"]
-        style 196 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        198["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes the three services'<br />/metrics every 15s; evaluates<br />the six PrometheusRules.</div>"]
-        style 198 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-        206["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-b-forwarder (webhook).</div>"]
-        style 206 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        226["<div style='font-weight: bold'>cards-authorization</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ISO-8583-style auth switch.<br />Chaos: timeouts, issuer-down.</div>"]
+        style 226 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        229["<div style='font-weight: bold'>fraud-scoring</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>ML scoring. Chaos:<br />model-drift, latency,<br />crashloop, lag.</div>"]
+        style 229 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        232["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway.<br />Chaos: rate-limit-storm,<br />cert-expiry.</div>"]
+        style 232 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        235["<div style='font-weight: bold'>kafka</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi (KRaft)]</div><div style='font-size: 80%; margin-top:10px'>Business event backbone and<br />alert transport:<br />card.authorized,<br />fraud.scored, alerts.raw.</div>"]
+        style 235 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        246["<div style='font-weight: bold'>kafka-exporter</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi kafka-exporter]</div><div style='font-size: 80%; margin-top:10px'>Exports per-consumer-group<br />lag<br />(kafka_consumergroup_lag).<br />Chaos: broker-down (scales<br />the broker KafkaNodePool to<br />0).</div>"]
+        style 246 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        250["<div style='font-weight: bold'>alerts-bridge</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Alertmanager webhook<br />receiver; produces one Kafka<br />message per alert to<br />alerts.raw (route A's first<br />hop).</div>"]
+        style 250 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        255["<div style='font-weight: bold'>kafka-relay</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes alerts.raw,<br />HMAC-signs, and POSTs to<br />ingest (route A's second<br />hop).</div>"]
+        style 255 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        259["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services, Kafka, and<br />kafka-exporter; evaluates the<br />eleven PrometheusRules.</div>"]
+        style 259 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+        275["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-a-kafka by default;<br />Kafka's own alerts<br />(KafkaBrokerDown,<br />KafkaRelayLag,<br />AlertsBridgeDown,<br />KafkaRelayDown) take<br />route-b-forwarder instead.</div>"]
+        style 275 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       end
 
     end
 
-    184-. "<div>scrape</div><div style='font-size: 70%'></div>" .->181
-    184-. "<div>scrape</div><div style='font-size: 70%'></div>" .->182
-    184-. "<div>scrape</div><div style='font-size: 70%'></div>" .->183
-    184-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->188
-    184-. "<div>scrape</div><div style='font-size: 70%'></div>" .->192
-    184-. "<div>scrape</div><div style='font-size: 70%'></div>" .->194
-    184-. "<div>scrape</div><div style='font-size: 70%'></div>" .->196
-    198-. "<div>scrape</div><div style='font-size: 70%'></div>" .->181
-    198-. "<div>scrape</div><div style='font-size: 70%'></div>" .->182
-    198-. "<div>scrape</div><div style='font-size: 70%'></div>" .->183
-    198-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->188
-    198-. "<div>scrape</div><div style='font-size: 70%'></div>" .->192
-    198-. "<div>scrape</div><div style='font-size: 70%'></div>" .->194
-    198-. "<div>scrape</div><div style='font-size: 70%'></div>" .->196
-    184-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->206
-    198-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->206
+    200-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->203
+    201-. "<div>consume card.authorized,<br />produce fraud.scored</div><div style='font-size: 70%'></div>" .->203
+    202-. "<div>consume fraud.scored</div><div style='font-size: 70%'></div>" .->203
+    207-. "<div>read consumer group offsets</div><div style='font-size: 70%'></div>" .->203
+    209-. "<div>produce alerts.raw</div><div style='font-size: 70%'></div>" .->203
+    211-. "<div>consume alerts.raw</div><div style='font-size: 70%'></div>" .->203
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->200
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->201
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->202
+    213-. "<div>scrape broker JMX</div><div style='font-size: 70%'></div>" .->203
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->207
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->209
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->211
+    221-. "<div>route A webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->209
+    213-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->221
+    226-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->203
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->226
+    229-. "<div>consume card.authorized,<br />produce fraud.scored</div><div style='font-size: 70%'></div>" .->203
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->229
+    232-. "<div>consume fraud.scored</div><div style='font-size: 70%'></div>" .->203
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->232
+    200-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->235
+    201-. "<div>consume card.authorized,<br />produce fraud.scored</div><div style='font-size: 70%'></div>" .->235
+    202-. "<div>consume fraud.scored</div><div style='font-size: 70%'></div>" .->235
+    207-. "<div>read consumer group offsets</div><div style='font-size: 70%'></div>" .->235
+    209-. "<div>produce alerts.raw</div><div style='font-size: 70%'></div>" .->235
+    211-. "<div>consume alerts.raw</div><div style='font-size: 70%'></div>" .->235
+    213-. "<div>scrape broker JMX</div><div style='font-size: 70%'></div>" .->235
+    226-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->235
+    229-. "<div>consume card.authorized,<br />produce fraud.scored</div><div style='font-size: 70%'></div>" .->235
+    232-. "<div>consume fraud.scored</div><div style='font-size: 70%'></div>" .->235
+    246-. "<div>read consumer group offsets</div><div style='font-size: 70%'></div>" .->203
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->246
+    246-. "<div>read consumer group offsets</div><div style='font-size: 70%'></div>" .->235
+    250-. "<div>produce alerts.raw</div><div style='font-size: 70%'></div>" .->203
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->250
+    221-. "<div>route A webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->250
+    250-. "<div>produce alerts.raw</div><div style='font-size: 70%'></div>" .->235
+    255-. "<div>consume alerts.raw</div><div style='font-size: 70%'></div>" .->203
+    213-. "<div>scrape</div><div style='font-size: 70%'></div>" .->255
+    255-. "<div>consume alerts.raw</div><div style='font-size: 70%'></div>" .->235
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->200
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->201
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->202
+    259-. "<div>scrape broker JMX</div><div style='font-size: 70%'></div>" .->203
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->207
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->209
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->211
+    259-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->221
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->226
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->229
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->232
+    259-. "<div>scrape broker JMX</div><div style='font-size: 70%'></div>" .->235
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->246
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->250
+    259-. "<div>scrape</div><div style='font-size: 70%'></div>" .->255
+    275-. "<div>route A webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->209
+    213-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->275
+    275-. "<div>route A webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->250
+    259-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->275
 
   end
