@@ -12,10 +12,23 @@ watchAnyNamespace: false
 
 # Upstream defaults 384Mi/384Mi - trimmed for kind, matching the rest of the
 # kind estate's resource requests/limits (see deploy/kind, kube-prometheus-stack.yaml).
+# The cluster operator is a JVM too: on a 4-vCPU GitHub runner it
+# crash-looped under a 256Mi limit + 500m CPU cap while the Kafka pods it
+# manages were fine (estate-demo run 34434692555, #83). No CPU limit, and
+# enough memory for the operator plus its per-cluster reconciliation state.
 resources:
   requests:
-    cpu: 100m
-    memory: 256Mi
+    cpu: 200m
+    memory: 384Mi
   limits:
-    cpu: 500m
-    memory: 256Mi
+    memory: 768Mi
+
+# Its own probes timed out on the runner ("context deadline exceeded") while
+# the operator was busy with the first reconciliation; give it time to come
+# up and check less often (chart values: initialDelaySeconds / periodSeconds).
+livenessProbe:
+  initialDelaySeconds: 60
+  periodSeconds: 30
+readinessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 30
