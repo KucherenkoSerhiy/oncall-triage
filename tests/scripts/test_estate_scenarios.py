@@ -263,8 +263,11 @@ def test_run_broker_down_happy_path(monkeypatch):
     )
 
     assert alert["alert_id"] == "a3"
-    assert any(argv[:4] == ["kubectl", "-n", "bank", "patch"] for argv in patch_calls)
-    assert any(argv[:4] == ["kubectl", "-n", "bank", "wait"] for argv in patch_calls)
+    # broker-down = pause reconciliation + delete the broker PodSet; recovery =
+    # remove the pause annotation + wait for the PodSet and pod (#78).
+    verbs = [argv[3] for argv in patch_calls if argv[:3] == ["kubectl", "-n", "bank"]]
+    assert verbs[:3] == ["annotate", "wait", "delete"]
+    assert "annotate" in verbs[3:] and verbs[-1] == "wait"
 
 
 def test_run_broker_down_fails_when_rule_never_fires(monkeypatch):
