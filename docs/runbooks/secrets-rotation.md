@@ -79,9 +79,9 @@ a human to**:
 
 | Step | Run | Started | Finished | Result | Smoke |
 |---|---|---|---|---|---|
-| Rotate console token (`infra/aws` apply) | _pending - fill in after step 2 above_ | | | | |
+| Rotate console token (`infra/aws` apply, keeper `m9e-2026-09-10`, PR #89) | [34476339421](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34476339421) | 2026-09-10 12:22:16Z | 12:34:12Z | success (both approval legs) | `OK: alert_id=01M25MYPE9E2GG108RQ7BZQQ1K action=ack; known_alert_id=01M25MZ1Z8RPFWG29CBHRFC5TA` - the smoke read the new token from SSM |
 
-Until that row is filled in, treat this rotation as **not done** - the
+The Azure `notifications` app setting was re-synced by a follow-up `deploy.yml -f root=azure` dispatch straight after (the two apply legs run in parallel, so the Azure leg of the rotating run can read the previous token). The row above is the record; a future rotation repeats the keeper bump and refills it. Historically: until that row was filled in, the rotation counted as **not done** - the
 Terraform change is real and correct, but nobody has run it yet, and this
 runbook says so plainly rather than implying otherwise.
 
