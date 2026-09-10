@@ -16,6 +16,12 @@ variable "environment" {
   default     = "demo"
 }
 
+variable "plan_environment" {
+  description = "GitHub Actions environment PR plan jobs declare (M9d - replaces the bare pull_request OIDC subject)."
+  type        = string
+  default     = "plan"
+}
+
 variable "github_repository" {
   description = "owner/repo allowed to use the federated credentials."
   type        = string

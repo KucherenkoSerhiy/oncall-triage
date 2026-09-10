@@ -103,21 +103,24 @@ data "aws_iam_policy_document" "deploy_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Plans from pull requests, applies from the default branch through
-    # the `demo` environment, manual dispatches from the default branch.
-    # GitHub emits either the classic subject (repo:owner/repo:...) or,
-    # for newer repositories, the immutable one (repo:owner@id/repo@id:...);
-    # both are accepted so a rename or an ID-based token cannot lock the
-    # pipeline out.
+    # Plans from pull requests through the `plan` environment, applies from
+    # the default branch through the `demo` environment, manual dispatches
+    # from the default branch. GitHub emits either the classic subject
+    # (repo:owner/repo:...) or, for newer repositories, the immutable one
+    # (repo:owner@id/repo@id:...); both are accepted so a rename or an
+    # ID-based token cannot lock the pipeline out. M9d: the bare
+    # `pull_request` subject (any PR of this repository, unscoped) is
+    # retired in favor of `environment:plan`, which only a PR run that
+    # declares the `plan` environment can present - see ADR 0008.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = flatten([
         for repo in [var.github_repository, var.github_repository_immutable] : [
-          "repo:${repo}:pull_request",
           "repo:${repo}:ref:refs/heads/master",
           "repo:${repo}:ref:refs/heads/main",
           "repo:${repo}:environment:${var.environment}",
+          "repo:${repo}:environment:${var.plan_environment}",
         ]
       ])
     }

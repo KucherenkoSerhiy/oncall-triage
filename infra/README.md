@@ -1,12 +1,13 @@
 # Infrastructure
 
-Everything that has a cloud API is Terraform. Five root modules, two
+Everything that has a cloud API is Terraform. Six root modules, two
 audiences:
 
 | Root | Applied by | State | Contains |
 |---|---|---|---|
-| `bootstrap/aws` | a human, once | local file, then never touched | Terraform state bucket, GitHub OIDC provider, the deploy role `deploy.yml` assumes |
-| `bootstrap/azure` | a human, once | local file | resource group, app registration + federated credentials for GitHub, role assignment scoped to the resource group |
+| `bootstrap/aws` | a human, once (then again for M9d) | local file, then never touched | Terraform state bucket, GitHub OIDC provider, the deploy role `deploy.yml` assumes |
+| `bootstrap/azure` | a human, once (then again for M9d) | local file | resource group, app registration + federated credentials for GitHub, role assignment scoped to the resource group |
+| `bootstrap/github` | a human, as needed | `s3://<bucket>/bootstrap/github.tfstate` | the `plan` and `demo` GitHub Actions environments and their protection rules |
 | `aws-ecr` | `deploy.yml` (`ecr` job, every run) | `s3://<bucket>/aws-ecr/terraform.tfstate` | the ECR repository for the triage-worker image |
 | `aws` | `deploy.yml` (plan on PR, apply on merge) | `s3://<bucket>/aws/terraform.tfstate` (bucket in eu-north-1) | the triage brain, the AWS bank estate, DNS zone, budget, dashboard |
 | `azure` | `deploy.yml` | `s3://<bucket>/azure/terraform.tfstate` | the Azure bank estate, alert forwarder, Azure Monitor rules, budget |
@@ -41,9 +42,97 @@ terraform init && terraform apply
 terraform output            # -> client_id, tenant_id, subscription_id
 ```
 
-Then set the five repository variables in GitHub, create the `demo`
-environment with yourself as required reviewer, and every later change
+Then set the five repository variables in GitHub, and every later change
 flows through pull requests.
+
+The `demo` GitHub Actions environment itself (used above as an OIDC subject
+and, in `deploy.yml`, as the required-reviewer gate on every apply) is
+created and owned by `infra/bootstrap/github` - see below.
+
+## What `infra/bootstrap/github` deploys
+
+The `plan` and `demo` GitHub Actions environments `deploy.yml`'s jobs
+declare, and their protection rules, via the
+[`integrations/github`](https://registry.terraform.io/providers/integrations/github)
+provider - `demo` requires one reviewer (the repository owner) and no wait
+timer; `plan` has no protection rules at all, since it exists only to give
+PR plans an OIDC subject narrower than the bare `pull_request` one (M9d,
+see "Rotating the PR subject to an environment" below and ADR 0008).
+
+```bash
+cd infra/bootstrap/github
+export GITHUB_TOKEN=<a personal access token with the repo scope>
+terraform init \
+  -backend-config="bucket=$(terraform -chdir=../aws output -raw state_bucket)" \
+  -backend-config="region=eu-north-1"
+
+# demo already exists (created by hand before this root existed) - import
+# it instead of recreating it. Repository name only, no owner prefix.
+terraform import github_repository_environment.demo oncall-triage:demo
+
+terraform apply
+```
+
+**Fallback for a personal (non-organization) repository.** The `github`
+provider's `reviewers` block needs a numeric user id, fetched here with
+`data "github_user"`; GitHub only offers required reviewers on public
+repositories in the first place; if `terraform apply` fails to set the
+reviewer on `demo` for this repository (for example because a personal
+account rejects programmatic reviewer assignment while the web UI accepts
+it), fall back to managing only the `plan` environment: run
+`terraform state rm github_repository_environment.demo` (or, on a fresh
+apply that never succeeded, just delete the `demo` import), remove the
+whole `github_repository_environment.demo` resource block (not just its
+`reviewers` sub-block) from `main.tf`, apply again so this root manages
+`plan` only, and set `demo`'s reviewer and wait timer by hand once in the
+repository's Settings -> Environments -> demo.
+
+## Rotating the PR subject to an environment (M9d)
+
+Through M1-M8, `deploy.yml`'s PR plan jobs authenticated with the bare
+`repo:<owner>/<repo>:pull_request` OIDC subject - any pull request of this
+repository, unscoped. M9d narrows that to `environment:plan`: only a job
+that declares the `plan` GitHub Actions environment can present that
+subject. This changes the trust policy on both clouds' deploy identities,
+so - like the original bootstrap - it needs a human credential session; it
+ships as two PRs so the trust-policy change is live before the workflow
+that depends on it merges.
+
+1. **Bootstrap first**, with a human credential in each cloud. Both roots
+   drop `pull_request` and add `environment:plan` in the same apply (there
+   is no separate "add, then later remove" step):
+
+   ```bash
+   # AWS - a temporary IAM user key, deleted right after (the same kind of
+   # bootstrap identity as the original `nordwind-bootstrap` IAM user, ADR
+   # 0014 "Consequences")
+   terraform -chdir=infra/bootstrap/aws apply
+
+   # Azure - az login
+   terraform -chdir=infra/bootstrap/azure apply
+   ```
+
+   Paste both `terraform plan` outputs into the first PR (the PR template
+   asks for it). Merge once both `apply`s have actually run.
+
+2. **Then merge the workflow PR** - `deploy.yml`'s `plan` job declares
+   `environment: plan` (this repository's second PR of the slice). The
+   first plan run after merge proves the new subject works: `configure-aws-
+   credentials` and `azure/login` both succeed under the `plan` environment.
+
+   Between the two merges, PR plan jobs authenticate with the now-rejected
+   bare `pull_request` subject and fail - expected and brief (only the
+   informational plan comment goes red; nothing merges through it), so
+   merge the workflow PR promptly once the bootstrap applies are confirmed.
+
+**Rollback**: if the workflow PR breaks PR plans (for example, the `plan`
+environment was never created), re-add `"repo:${repo}:pull_request"` to
+`infra/bootstrap/aws/main.tf`'s `deploy_trust` subject list and, in
+`infra/bootstrap/azure/main.tf`, add a `"...-pull-request" = "repo:${repo}:pull_request"`
+entry back to both `local.classic_subjects` (`var.github_repository`) and
+`local.immutable_subjects` (`var.github_repository_immutable`), apply both
+roots again, and revert the `deploy.yml` change - PR plans fall back to the
+unscoped subject while the `plan` environment is fixed.
 
 ## What `infra/aws-ecr` deploys
 
