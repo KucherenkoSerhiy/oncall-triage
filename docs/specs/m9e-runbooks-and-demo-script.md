@@ -15,3 +15,20 @@ Slice 5 of 5 of `docs/specs/m9-hardening.md` (requirements 6 and 7). Builds on e
 ## Non-requirements
 
 New infrastructure, PagerDuty/Slack, SSO, anything the other M9 slices own.
+
+## Inputs recorded by the operator (use these verbatim; do not invent run ids)
+
+**Rollback drill, 2026-09-10 (UTC).** Worker image before the drill: `sha-5ed015b` (master). Rolled back to `sha-d7b0932` (the image built for PR #65) with `gh workflow run deploy.yml -f root=aws -f worker_image_sha=sha-d7b0932`:
+
+| step | run | started | finished | result | smoke |
+|---|---|---|---|---|---|
+| rollback to `sha-d7b0932` | [34437783068](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34437783068) | 04:35:38Z | 04:45:54Z | success (both approval legs) | `OK: alert_id=01M24T4HR7WY5FQT9RAEJ9C3M9 action=monitor; known_alert_id=01M24T5GJTPE8QA5N1EZBWJK34` |
+| roll forward to master (`sha-5ed015b`) | [34438448931](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34438448931) | 04:46Z | 04:55:52Z | success | `OK: alert_id=01M24TP2S7R2XD8GTJMNTJN879 action=monitor; known_alert_id=01M24TQ69P7K9ZDK2JSJHGX6BY` |
+
+Time from decision to a verified rollback: ~10 minutes, dominated by the image job (skipped as "already in ECR") and the two approvals. Before/after `CodeSha256` values are visible in `diagnose.yml` output (`Account concurrency + worker configuration` step) - cite the mechanism, not fabricated hashes.
+
+**Live probes to cite (all recorded on their issues):** M4 run 34414316312 (#18), M5 run 34427522005 (#20), M6 run 34427929878 (#22), M7 run 34437560310 (#24), M8 CI drift table (#25), M9a diagnose dashboard (#26), M9b replay (#27), M9c query logs / DNSSEC gated (#28, #81).
+
+**Incidents to derive runbook sections from (issue numbers):** #38, #71 (dedup collisions), #47 (alarm topic KMS), #50 (floats in alarm payloads), #52, #55 (Azure region / quota), #57 (alert rule schema), #59, #64 (Function apps without content), #66 (adapter service tag), #68, #69 (verdict lookup, kind noise), #75, #78, #83, #86 (Kafka on the runner, broker-down, operator, relay envelope), #81 (deploy role vs KMS).
+
+**Console token rotation:** perform it in this slice through Terraform (a `keepers` bump on the `random_password`, so SSM, the console and the notifications Function app setting rotate on the next deploy) and record the run id in `docs/runbooks/secrets-rotation.md`; the deploy that carries this PR is that run.

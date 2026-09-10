@@ -99,6 +99,11 @@ tasks:
     cmds:
       - python scripts/c4_drift.py --strict
 
+  docs-check:
+    desc: Fail on a relative Markdown link that doesn't resolve, or a generated C4 view no document mentions (what ci.yml's python job runs)
+    cmds:
+      - python scripts/check_links.py
+
   adr-index:
     desc: Regenerate docs/adr/README.md's index table from every ADR's heading
     cmds:
