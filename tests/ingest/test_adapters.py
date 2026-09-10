@@ -114,3 +114,25 @@ def test_azure_monitor_severity_mapping(severity_label, expected):
     payload["data"]["essentials"]["severity"] = severity_label
     alert = azure_monitor.to_canonical(payload, RECEIVED_AT)
     assert alert.severity == expected
+
+
+def test_azure_monitor_prefers_the_service_tag_in_the_description():
+    # infra/azure/alerts.tf writes "service=<name>; ..." into every rule
+    # description; the target resource is the App Insights component or the
+    # workspace, not the bank service (#66).
+    payload = _load("azure_monitor")
+    essentials = payload["data"]["essentials"]
+    essentials["description"] = "service=customer-notifications; provider returning 429."
+    essentials["alertTargetIDs"] = [
+        "/subscriptions/x/resourceGroups/rg/providers/microsoft.insights/components/nordwind-triage-demo-appinsights"
+    ]
+
+    alert = azure_monitor.to_canonical(payload, "2026-09-10T01:00:00Z")
+
+    assert alert.service == "customer-notifications"
+
+
+def test_azure_monitor_falls_back_to_the_target_resource_without_a_tag():
+    payload = _load("azure_monitor")
+    alert = azure_monitor.to_canonical(payload, "2026-09-10T01:00:00Z")
+    assert alert.service == "ledger-svc"

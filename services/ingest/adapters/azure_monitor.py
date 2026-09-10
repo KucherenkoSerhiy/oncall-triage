@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from services.ingest.adapters import NotAnAlert
 from services.ingest.canonical import CanonicalAlert, compute_fingerprint, new_alert_id
 
@@ -24,10 +26,20 @@ def to_canonical(payload: dict, received_at: str) -> CanonicalAlert:
     alert_rule = essentials.get("alertRule", "")
     severity = _SEVERITY_MAP.get(essentials.get("severity", ""), "sev4")
 
-    target_ids = essentials.get("alertTargetIDs", [])
-    service = _service_from_target(target_ids[0]) if target_ids else "unknown"
-
     description = essentials.get("description", "")
+    # The rule's description carries `service=<name>` (infra/azure/alerts.tf),
+    # exactly like the CloudWatch alarms; the target resource is only a
+    # fallback - on Azure it is the App Insights component or the workspace
+    # ("appinsights", "logs"), never the bank service (#66).
+    target_ids = essentials.get("alertTargetIDs", [])
+    tagged = re.search(r"service=([^\s,;]+)", description)
+    if tagged:
+        service = tagged.group(1)
+    elif target_ids:
+        service = _service_from_target(target_ids[0])
+    else:
+        service = "unknown"
+
     labels: dict[str, str] = {}
     fingerprint = compute_fingerprint("azure-monitor", service, alert_rule, labels)
 
