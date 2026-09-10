@@ -142,7 +142,8 @@ def test_bridge_produces_and_relay_consumes_and_posts_with_a_verifiable_hmac(boo
     try:
         _wait_until(
             lambda: any(
-                r["body"]["alerts"][0]["fingerprint"] == fingerprint for r in stub_cls.requests
+                r["body"]["payload"]["alerts"][0]["fingerprint"] == fingerprint
+                for r in stub_cls.requests
             )
         )
     finally:
@@ -150,14 +151,17 @@ def test_bridge_produces_and_relay_consumes_and_posts_with_a_verifiable_hmac(boo
         consumer.close()
 
     matching = [
-        r for r in stub_cls.requests if r["body"]["alerts"][0]["fingerprint"] == fingerprint
+        r
+        for r in stub_cls.requests
+        if r["body"]["payload"]["alerts"][0]["fingerprint"] == fingerprint
     ]
     assert len(matching) == 1
     request = matching[0]
     assert request["verified"] is True
-    assert request["body"]["receiver"] == "route-a-kafka"
-    assert request["body"]["status"] == "firing"
-    assert request["body"]["alerts"][0]["labels"]["alertname"] == "KafkaConsumerLag"
+    assert request["body"]["source"] == "alertmanager"
+    assert request["body"]["payload"]["receiver"] == "route-a-kafka"
+    assert request["body"]["payload"]["status"] == "firing"
+    assert request["body"]["payload"]["alerts"][0]["labels"]["alertname"] == "KafkaConsumerLag"
     assert relay_registry.get_sample_value("relay_posted_total") == 1
 
 
@@ -205,7 +209,9 @@ def test_relay_retries_a_failing_stub_then_commits_after_a_2xx(bootstrap, stub):
         consumer.close()
 
     matching = [
-        r for r in stub_cls.requests if r["body"]["alerts"][0]["fingerprint"] == fingerprint
+        r
+        for r in stub_cls.requests
+        if r["body"]["payload"]["alerts"][0]["fingerprint"] == fingerprint
     ]
     assert len(matching) == 2, "expected exactly one retry (500 then 200)"
     assert all(r["verified"] for r in matching)
