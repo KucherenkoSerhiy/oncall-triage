@@ -81,6 +81,9 @@ with Claude, and let an operator read the result.
   in Terraform so no plaintext ever lands in the repo. The Anthropic key
   (`lambdas.tf`) is a third SSM parameter, deliberately **not** created by
   Terraform - see "Anthropic API key" below.
+- **DNSSEC + query logging** (`dnssec.tf`): the zone is DNSSEC-signed and
+  every query against it is logged - see "DNSSEC" and "DNS query logs"
+  below.
 
 An operator using `bankops` against a deployed environment reads the two
 generated secrets from SSM:
@@ -88,6 +91,65 @@ generated secrets from SSM:
 ```bash
 aws ssm get-parameter --with-decryption --name /nordwind-triage/demo/ingest-hmac-secret --query Parameter.Value --output text
 aws ssm get-parameter --with-decryption --name /nordwind-triage/demo/console-token --query Parameter.Value --output text
+```
+
+## DNSSEC
+
+The delegated zone (`triage.serhiykucherenko.dev`) is DNSSEC-signed
+end-to-end within Route 53:
+
+- an asymmetric KMS key (`alias/nordwind-triage-demo-dnssec`, us-east-1 -
+  a Route 53 requirement, regardless of the stack's own `eu-north-1`) signs
+  the zone;
+- `aws_route53_key_signing_key` + `aws_route53_hosted_zone_dnssec` turn
+  signing on for the hosted zone;
+- the resulting DS record (key tag, algorithm, digest type, digest -
+  together the `dnssec_ds_record` output) is published at the parent zone
+  on Cloudflare as a `DS` record for `triage`, so a validating resolver can
+  walk the chain of trust from `serhiykucherenko.dev` down.
+
+**Prerequisite for a fully validating chain**: the parent
+(`serhiykucherenko.dev`) must itself be signed at Cloudflare (Settings ->
+DNS -> DNSSEC) for a resolver to trust the DS this stack publishes -
+`serhiykucherenko.dev` signing itself is outside this repository, since
+Cloudflare (not Terraform) owns that zone.
+
+**Verify**: `task dns-check` (`scripts/dns_check.py`) runs `dig +dnssec
+triage.serhiykucherenko.dev NS` and checks for the `ad` (authenticated
+data) flag and an RRSIG record, cross-checks the DS published at the
+parent against the zone's own DNSKEY set, and confirms the console/API
+hostnames still resolve. It exits 1 on a mismatch, and is skipped (exit 0)
+if `dig` isn't installed. The deploy workflow runs it after every apply as
+a non-fatal smoke step - DNSSEC validation depends on resolver caches
+around the world picking up the new DS record, which can take up to about
+a week after it is first published, so a failure in that window is a
+signal to re-check later, not proof the deploy broke anything. Once that
+window has passed, drop `continue-on-error: true` from the `smoke` job's
+DNS check step in `deploy.yml`.
+
+**Rollback order matters.** `cloudflare_dns_record.ds` (`dnssec.tf`)
+`depends_on` `aws_route53_hosted_zone_dnssec.triage`, so Terraform creates
+the DS only after signing is enabled (and propagated) and, on destroy,
+removes the DS *before* disabling signing - the only safe order. Publishing
+a DS for a zone that isn't signed yet, or disabling signing while a DS
+still points at it, both break resolution for the whole zone until caches
+expire.
+
+**Cost**: ~$1/month for the KMS key (asymmetric keys aren't included in
+the KMS free tier) - the one deliberate cost increase in the M9 hardening
+milestone; see `docs/DESIGN.md` section 9 ("Cost model").
+
+## DNS query logs
+
+Every query against the delegated zone is logged to
+`/aws/route53/nordwind-triage-demo` (`dns_query_log_group` output), a
+CloudWatch Logs group in us-east-1 (query logging is also a Route 53
+us-east-1 requirement) with 7-day retention. Read them with Logs Insights:
+
+```
+fields @timestamp, query_name, query_type, responseCode
+| filter query_name like /triage.serhiykucherenko.dev/
+| sort @timestamp desc
 ```
 
 ## What the AWS bank estate deploys
@@ -546,3 +608,53 @@ this public repo). Instead the read happens at the *top* of the same
 `terraform plan` / `terraform apply` step, in the same shell process, so
 the secrets never leave a masked, single-step scope; "first" is satisfied
 in execution order, not job-step order.
+
+## Decisions taken while shipping Route 53 DNSSEC + query logging (M9c)
+
+Notes on places where `docs/specs/m9c-dnssec-query-logging.md` left a
+choice open.
+
+### `resource_arn` on the query-log resource policy
+
+Requirement 3 asks for a resource policy "scoped to that log group ARN".
+`aws_cloudwatch_log_resource_policy` accepts an account-wide policy by
+default; its `resource_arn` argument is what actually narrows a policy to
+one log group (rather than counting against the account's shared
+10-resource-policy limit). Both are set: `policy_document`'s own
+`Resource` still names the log group ARN (with the `:*` suffix
+`CreateLogStream`/`PutLogEvents` need to reach its log streams), and
+`resource_arn` carries the bare log group ARN that actually scopes the
+policy.
+
+### The `dns` C4 container is new, not renamed
+
+The spec says the (implicitly already-existing) "`dns` container ... gains
+the description" - but `docs/c4/workspace.dsl` had no `dns` container
+before this slice; `aws_route53_zone.triage` was tagged `c4_container =
+"console"` in `main.tf`. Read literally that would mean giving the
+*console* container a DNS-flavoured description, which is wrong on its
+face - DNSSEC and query logging are properties of the zone, not the
+console UI. This implementation adds a new `dns` container to the
+`triage` software system with exactly the description the spec names, and
+gives `dnssec.tf`'s resources (the KMS key and the query-log group) the
+new `c4_container = "dns"` tag; `aws_route53_zone.triage` itself keeps its
+existing `console` tag unchanged (out of scope for this slice - retagging
+it is a separate, riskier drift-surface change this spec doesn't ask for).
+
+### Cost line lands in DESIGN.md section 9, not section 8
+
+The spec's own intro (not a numbered requirement, so not binding) says the
+KMS key cost is "called out in `docs/DESIGN.md` section 8" - but section 8
+is "Security posture"; the cost table is section 9, "Cost model". The
+number has drifted as the document grew sections since the spec was
+written; the KMS line was added to the actual cost table (section 9) as
+the thing that matters, not the stale section number.
+
+### Cloudflare `DS` record uses the `data` nested attribute, not `content`
+
+`dns_delegation.tf`'s `NS` records set a plain string `content`; the
+Cloudflare provider 5.x schema only allows that for simple record types.
+`DS` (like `CAA`/`SRV`/`LOC`) needs the typed `data` object instead, with
+`key_tag`/`algorithm`/`digest_type`/`digest` fields matching
+`aws_route53_key_signing_key`'s `key_tag`/`signing_algorithm_type`/
+`digest_algorithm_type`/`digest_value` computed attributes one for one.

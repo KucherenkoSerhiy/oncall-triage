@@ -15,11 +15,8 @@ skip-check:
   # Deploy-role IAM exceptions are inline on the policy document in
   # infra/bootstrap/aws/main.tf, each with its reason, so they cannot
   # silently apply to any other policy.
-  # Route 53 hardening deferred to milestone M9 (hardening): DNSSEC needs
-  # a KMS key (~$1/month) plus a DS record at the parent registrar; query
-  # logging needs a us-east-1 log group. Both are tracked in DESIGN.md.
-  - CKV2_AWS_38   # DNSSEC signing
-  - CKV2_AWS_39   # DNS query logging
+  # Route 53 hardening shipped in M9c (infra/aws/dnssec.tf): DNSSEC signing
+  # and query logging, so CKV2_AWS_38/CKV2_AWS_39 no longer need a skip.
 
   # M2c - the alert spine (infra/aws/{storage,messaging,lambdas,api,console,secrets}.tf).
   # v1 trade-offs; the DYNAMODB/SSM/Lambda-env plaintext ones are the exact

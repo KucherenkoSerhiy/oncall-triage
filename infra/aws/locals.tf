@@ -22,5 +22,6 @@ locals {
     ops         = { c4_container = "ops" }
     sloReporter = { c4_container = "sloReporter" }
     dashboard   = { c4_container = "dashboard" }
+    dns         = { c4_container = "dns" }
   }
 }
