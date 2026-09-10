@@ -32,7 +32,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             ops = container "ops topic" "Human-only: CloudWatch alarm state changes for the triage brain itself, never fed back into ingest." "SNS" "Queue,Deployable"
             sloReporter = container "slo-reporter" "Daily (00:15 UTC): reads yesterday's triaged alerts and verdicts, computes latency p95 and SLO attainment." "AWS Lambda (Python)" "Deployable"
             dns = container "dns" "DNSSEC-signed; query logs" "Route 53 hosted zone" "Deployable"
-            knownIssuesBucket = container "known-issues bucket" "Weekly JSON export of taught known issues, so the memory survives a table wipe; expires after 30 days." "S3" "Database" "Deployable"
+            knownIssuesBucket = container "known-issues bucket" "Weekly JSON export of taught known issues, so the memory survives a table wipe; expires after 30 days." "S3" "Database,Deployable"
             knownIssuesExport = container "known-issues-export" "Weekly (Monday 00:30 UTC): scans the known-issues table and writes a dated JSON export to the bucket." "AWS Lambda (Python)" "Deployable"
         }
 
