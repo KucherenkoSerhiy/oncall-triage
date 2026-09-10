@@ -1,0 +1,35 @@
+graph LR
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Dynamic View: Nordwind Kubernetes estate (kind)"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    subgraph 32 ["Nordwind Kubernetes estate (kind)"]
+      style 32 fill:#ffffff,stroke:#131921,color:#131921
+
+      36["<div style='font-weight: bold'>kafka</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi (KRaft)]</div><div style='font-size: 80%; margin-top:10px'>Business event backbone and<br />alert transport:<br />card.authorized,<br />fraud.scored, alerts.raw.</div>"]
+      style 36 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      38["<div style='font-weight: bold'>alerts-bridge</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Alertmanager webhook<br />receiver; produces one Kafka<br />message per alert to<br />alerts.raw (route A's first<br />hop).</div>"]
+      style 38 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      39["<div style='font-weight: bold'>kafka-relay</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes alerts.raw,<br />HMAC-signs, and POSTs to<br />ingest (route A's second<br />hop).</div>"]
+      style 39 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      40["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services, Kafka, and<br />kafka-exporter; evaluates the<br />eleven PrometheusRules.</div>"]
+      style 40 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      41["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-a-kafka by default;<br />Kafka's own alerts<br />(KafkaBrokerDown,<br />KafkaRelayLag,<br />AlertsBridgeDown,<br />KafkaRelayDown) take<br />route-b-forwarder instead.</div>"]
+      style 41 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+    end
+
+    subgraph 5 ["Alert Triage"]
+      style 5 fill:#ffffff,stroke:#131921,color:#131921
+
+      6["<div style='font-weight: bold'>ingest</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>HMAC-verifies webhooks,<br />normalises to the canonical<br />alert, scrubs PII, dedups by<br />fingerprint, enqueues.</div>"]
+      style 6 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+    end
+
+    40-. "<div>1. rule fires</div><div style='font-size: 70%'></div>" .->41
+    41-. "<div>2. route A webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->38
+    38-. "<div>3. produce alerts.raw</div><div style='font-size: 70%'></div>" .->36
+    39-. "<div>4. consume alerts.raw</div><div style='font-size: 70%'></div>" .->36
+    39-. "<div>5. HTTPS + HMAC</div><div style='font-size: 70%'></div>" .->6
+
+  end

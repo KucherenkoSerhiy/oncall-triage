@@ -1,11 +1,12 @@
 name: estate-demo
 
-# The live gate for M6: creates a real kind cluster, installs
-# kube-prometheus-stack + the nordwind-bank chart, runs the cards-timeouts
-# chaos scenario end to end (fault -> Prometheus rule -> Alertmanager ->
-# route B -> ingest -> verdict), uploads diagnostics, and tears the cluster
-# down. Manual (workflow_dispatch) and a weekly Sunday 06:00 UTC schedule -
-# never on every PR (see docs/specs/m6b, non-requirements).
+# The live gate for M6/M7: creates a real kind cluster, installs
+# kube-prometheus-stack + Strimzi + the nordwind-bank chart, runs the
+# cards-timeouts, fraud-lag, and broker-down chaos scenarios end to end
+# (fault -> Prometheus rule -> Alertmanager -> route A or B -> ingest ->
+# verdict), uploads diagnostics, and tears the cluster down. Manual
+# (workflow_dispatch) and a weekly Sunday 06:00 UTC schedule - never on every
+# PR (see docs/specs/m6b, non-requirements).
 
 on:
   workflow_dispatch:
@@ -29,12 +30,13 @@ env:
 
 jobs:
   estate-demo:
-    name: estate-demo - kind cluster, cards-timeouts chaos scenario
+    name: estate-demo - kind cluster, cards-timeouts + fraud-lag + broker-down chaos scenarios
     runs-on: ubuntu-latest
-    # 25 min for the M6 steps + headroom for M7a's extra estate-up work
-    # (installing the Strimzi operator and waiting up to 10 min for the
-    # Kafka resource's Ready condition).
-    timeout-minutes: 30
+    # 40 min: the M6 steps, M7a's extra estate-up work (installing the
+    # Strimzi operator and waiting up to 10 min for the Kafka resource's
+    # Ready condition), and M7b's two extra chaos scenarios (each budgets up
+    # to 8 min for the rule to fire and 10 min for the verdict).
+    timeout-minutes: 40
     environment: demo
     steps:
       - uses: actions/checkout@v4
@@ -74,20 +76,11 @@ jobs:
         with:
           terraform_version: "1.10.5"
 
-      # forwarder.url documented at deploy/helm/values/kube-prometheus-stack.yaml
-      # and infra/README.md: the FORWARDER_URL environment secret below is set
-      # by hand from `terraform output -raw forwarder_url` of infra/azure (a
-      # sensitive output - see docs/specs/m5b) once the Azure estate is live.
-      # Empty is fine: route B then targets the dummy receiver (task
-      # estate-status reports it).
-      - name: Create the kind cluster, install monitoring + nordwind-bank
-        env:
-          FORWARDER_URL: ${{ secrets.FORWARDER_URL }}
-          # Unique `cluster` external label per run - see #71.
-          DEMO_RUN_ID: kind-gha-${{ github.run_id }}
-        run: task estate-up
-
-      - name: AWS credentials (OIDC) - read SMOKE_TOKEN from SSM, same as deploy.yml's smoke job
+      # M7b: `task estate-up` now creates the `nordwind-ingest` Kubernetes
+      # Secret from an SSM parameter (kafka-relay's INGEST_HMAC_SECRET), so
+      # AWS credentials have to exist before that task runs - moved ahead of
+      # the kind cluster step, same OIDC role the smoke job already uses.
+      - name: AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
@@ -99,7 +92,20 @@ jobs:
           -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
           -backend-config="region=${{ env.AWS_REGION }}"
 
-      - name: Run the cards-timeouts chaos scenario
+      # forwarder.url documented at deploy/helm/values/kube-prometheus-stack.yaml
+      # and infra/README.md: the FORWARDER_URL environment secret below is set
+      # by hand from `terraform output -raw forwarder_url` of infra/azure (a
+      # sensitive output - see docs/specs/m5b) once the Azure estate is live.
+      # Empty is fine: route B then targets the dummy receiver (task
+      # estate-status reports it).
+      - name: Create the kind cluster, install monitoring + Strimzi + nordwind-bank
+        env:
+          FORWARDER_URL: ${{ secrets.FORWARDER_URL }}
+          # Unique `cluster` external label per run - see #71.
+          DEMO_RUN_ID: kind-gha-${{ github.run_id }}
+        run: task estate-up
+
+      - name: Run the cards-timeouts, fraud-lag, and broker-down chaos scenarios
         run: |
           SMOKE_TOKEN=$(aws ssm get-parameter --with-decryption \
             --name "$(terraform -chdir=infra/aws output -raw console_token_parameter)" \
@@ -122,9 +128,14 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          for svc in cards-authorization fraud-scoring open-banking-api; do
+          for svc in cards-authorization fraud-scoring open-banking-api alerts-bridge kafka-relay; do
             kubectl -n bank logs "deploy/$svc" --all-containers --tail=1000 > "$svc.log" || true
           done
+
+      - name: Dump Kafka resources
+        if: always()
+        continue-on-error: true
+        run: kubectl get kafka,kafkanodepool,kafkatopic,kafkauser -n bank -o yaml > kafka-resources.yaml
 
       - name: Dump cluster events
         if: always()
@@ -139,6 +150,7 @@ jobs:
             alertmanager-alerts.json
             prometheus-rules.json
             *.log
+            kafka-resources.yaml
             events.txt
           if-no-files-found: ignore
 

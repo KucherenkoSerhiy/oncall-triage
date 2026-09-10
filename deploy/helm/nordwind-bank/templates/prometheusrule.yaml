@@ -61,3 +61,49 @@ spec:
           annotations:
             summary: open-banking-api TLS certificate is expiring soon
             description: openbanking_cert_expiry_seconds is less than 14 days away from now.
+        {{- if .Values.kafka.enabled }}
+        - alert: KafkaBrokerDown
+          expr: absent(kafka_server_replicamanager_leadercount) or sum(up{job=~".*kafka.*"}) == 0
+          for: 1m
+          labels:
+            service: kafka
+            severity: critical
+          annotations:
+            summary: The Kafka broker is unreachable
+            description: Either kafka_server_replicamanager_leadercount has no series or every up{job=~".*kafka.*"} target has been down for at least 1 minute.
+        - alert: KafkaConsumerLag
+          expr: label_replace(sum by (consumergroup) (kafka_consumergroup_lag), "service", "$1", "consumergroup", "(.*)") > 50
+          for: 2m
+          labels:
+            severity: high
+          annotations:
+            summary: A Kafka consumer group is falling behind
+            description: sum by (consumergroup) (kafka_consumergroup_lag) has been above 50 for at least 2 minutes.
+        - alert: KafkaRelayLag
+          expr: sum(kafka_consumergroup_lag{consumergroup="kafka-relay"}) > 20 or time() - max(relay_last_success_timestamp_seconds) > 300
+          for: 2m
+          labels:
+            service: kafka-relay
+            severity: high
+          annotations:
+            summary: kafka-relay is falling behind or has stopped posting
+            description: Either the kafka-relay consumer group's lag on alerts.raw has been above 20 for at least 2 minutes, or it has been more than 300s since relay_last_success_timestamp_seconds.
+        - alert: AlertsBridgeDown
+          expr: up{job=~".*alerts-bridge.*"} == 0
+          for: 1m
+          labels:
+            service: alerts-bridge
+            severity: critical
+          annotations:
+            summary: alerts-bridge is down
+            description: up{job=~".*alerts-bridge.*"} has been 0 for at least 1 minute.
+        - alert: KafkaRelayDown
+          expr: up{job=~".*kafka-relay.*"} == 0
+          for: 1m
+          labels:
+            service: kafka-relay
+            severity: critical
+          annotations:
+            summary: kafka-relay is down
+            description: up{job=~".*kafka-relay.*"} has been 0 for at least 1 minute.
+        {{- end }}

@@ -1,0 +1,120 @@
+{{- if .Values.kafka.enabled }}
+# alerts-bridge (M7b, route A's first hop): receives the Alertmanager
+# webhook and produces alerts.raw. Not part of the generic `.Values.services`
+# loop in ../deployment.yaml - it needs no fault ConfigMap, and only exists
+# when kafka.enabled.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alerts-bridge
+  labels:
+    {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alerts-bridge
+  template:
+    metadata:
+      labels:
+        {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: alerts-bridge
+          image: "nordwind/alerts-bridge:{{ .Values.imageTag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          env:
+            - name: KAFKA_BOOTSTRAP
+              value: "{{ .Release.Name }}-kafka-bootstrap.bank.svc:9093"
+            - name: KAFKA_USER
+              value: alerts-bridge
+            - name: KAFKA_PASSWORD_FILE
+              value: /etc/nordwind/kafka/user/password
+            - name: KAFKA_CA_FILE
+              value: /etc/nordwind/kafka/ca/ca.crt
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: kafka-user
+              mountPath: /etc/nordwind/kafka/user
+              readOnly: true
+            - name: kafka-ca
+              mountPath: /etc/nordwind/kafka/ca
+              readOnly: true
+      volumes:
+        - name: kafka-user
+          secret:
+            secretName: alerts-bridge
+        - name: kafka-ca
+          secret:
+            secretName: {{ .Release.Name }}-cluster-ca-cert
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # Release-name-prefixed on purpose: deploy/helm/values/kube-prometheus-stack.yaml
+  # is a separate Helm release's values file and can't read this chart's
+  # `.Release.Name`, so its Alertmanager webhook URL hardcodes
+  # `nordwind-bank-alerts-bridge.bank.svc` - matching only as long as this
+  # chart is installed under the release name `nordwind-bank` (Taskfile.yml's
+  # `estate-up` always does). The other three services' Services stay
+  # unprefixed - nothing outside this chart needs to resolve them by name.
+  name: {{ .Release.Name }}-alerts-bridge
+  labels:
+    {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge") | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: alerts-bridge
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: alerts-bridge
+  labels:
+    {{- include "nordwind-bank.labels" (dict "name" "alerts-bridge") | nindent 4 }}
+    release: {{ .Values.monitoring.release }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alerts-bridge
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+{{- end }}

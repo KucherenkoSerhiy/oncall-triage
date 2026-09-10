@@ -79,7 +79,7 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 | M4 | AWS estate: three services + CloudWatch alarms + chaos | ✅ live (2026-09-10): `bankops chaos payments --mode pool` -> CloudWatch alarm -> verdict `known, ack` in ~4 min, unattended ([#18](https://github.com/KucherenkoSerhiy/oncall-triage/issues/18)) |
 | M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | 🔨 code merged ([#19](https://github.com/KucherenkoSerhiy/oncall-triage/issues/19)), first apply in progress ([#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20), [#52](https://github.com/KucherenkoSerhiy/oncall-triage/issues/52)) |
 | M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ✅ chart merged ([#54](https://github.com/KucherenkoSerhiy/oncall-triage/pull/54)); kind cluster, `task estate-up/down/status/chaos-k8s`, `estate-demo.yml` ([#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
-| M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | 🔨 M7a wiring merged (Strimzi, topics/users/ACLs, producers/consumers, `lag` + `broker-down`); M7b (alerts-bridge, kafka-relay, route A) in progress ([#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)) |
+| M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | ✅ M7a (Strimzi, topics/users/ACLs, producers/consumers, `lag` + `broker-down`) and M7b (alerts-bridge, kafka-relay, route A/B Alertmanager routing, ADR 0015) merged ([#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)) |
 | M8 | C4 drift check against Terraform tags and Helm labels | ⏳ [#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25) |
 | M9 | Hardening: self-observability + SLO, runbooks, rollback drill | ⏳ [#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30) |
 
@@ -89,6 +89,15 @@ its pull request — the definition of done is in the
 [GitHub milestones](https://github.com/KucherenkoSerhiy/oncall-triage/milestones)
 with one issue per pull-request-sized slice (`M5a`, `M5b`, ...); the
 specs the slices are built from live in [`docs/specs/`](docs/specs/).
+
+`estate-demo.yml`'s unattended run is the sharpest proof of the whole
+Kubernetes estate: it sets `lag` on fraud-scoring, waits for
+`KafkaConsumerLag` to fire, and confirms the verdict travelled route A —
+over Kafka, through `alerts-bridge` and `kafka-relay` — before scaling the
+Kafka broker to zero and confirming the verdict for *that* failure travelled
+route B instead. One verdict arrived over Kafka; the one about Kafka did
+not (see [ADR 0015](docs/adr/0015-route-a-relay-instead-of-a-public-kafka-endpoint.md)
+and `docs/runbooks/kubernetes-estate.md`).
 
 ## Repository map
 

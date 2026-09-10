@@ -81,7 +81,7 @@ class KafkaPublisher:
         self._producer.flush(timeout)
 
 
-def make_producer(settings: KafkaSettings) -> Publisher:
+def make_producer(settings: KafkaSettings) -> KafkaPublisher:
     return KafkaPublisher(confluent_kafka.Producer(settings.client_config()))
 
 

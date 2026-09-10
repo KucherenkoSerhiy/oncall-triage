@@ -6,6 +6,8 @@ graph LR
 
     4["<div style='font-weight: bold'>bankops CLI</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>fire, chaos, teach, tail,<br />estate up|down</div>"]
     style 4 fill:#5b6b7a,stroke:#3f4a55,color:#ffffff
+    5["<div style='font-weight: bold'>Alert Triage</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Ingests alerts from every<br />estate, triages them with<br />Claude, remembers known<br />issues, publishes verdicts.</div>"]
+    style 5 fill:#1c2530,stroke:#131921,color:#ffffff
     27["<div style='font-weight: bold'>Nordwind serverless estate (Azure)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>One bank service on Azure<br />Functions, Azure Monitor<br />alerts, and the always-on<br />alert forwarder.</div>"]
     style 27 fill:#1c2530,stroke:#131921,color:#ffffff
 
@@ -18,27 +20,40 @@ graph LR
       style 34 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       35["<div style='font-weight: bold'>open-banking-api</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>PSD2 third-party API gateway.<br />Chaos: rate-limit-storm,<br />cert-expiry.</div>"]
       style 35 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      36["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes the three services'<br />/metrics every 15s; evaluates<br />the six PrometheusRules.</div>"]
+      36["<div style='font-weight: bold'>kafka</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi (KRaft)]</div><div style='font-size: 80%; margin-top:10px'>Business event backbone and<br />alert transport:<br />card.authorized,<br />fraud.scored, alerts.raw.</div>"]
       style 36 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-      37["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-b-forwarder (webhook).</div>"]
+      37["<div style='font-weight: bold'>kafka-exporter</div><div style='font-size: 70%; margin-top: 0px'>[Container: Strimzi kafka-exporter]</div><div style='font-size: 80%; margin-top:10px'>Exports per-consumer-group<br />lag<br />(kafka_consumergroup_lag).<br />Chaos: broker-down (scales<br />the broker KafkaNodePool to<br />0).</div>"]
       style 37 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      38["<div style='font-weight: bold'>alerts-bridge</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Alertmanager webhook<br />receiver; produces one Kafka<br />message per alert to<br />alerts.raw (route A's first<br />hop).</div>"]
+      style 38 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      39["<div style='font-weight: bold'>kafka-relay</div><div style='font-size: 70%; margin-top: 0px'>[Container: Deployment (Python)]</div><div style='font-size: 80%; margin-top:10px'>Consumes alerts.raw,<br />HMAC-signs, and POSTs to<br />ingest (route A's second<br />hop).</div>"]
+      style 39 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      40["<div style='font-weight: bold'>prometheus</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Scrapes services, Kafka, and<br />kafka-exporter; evaluates the<br />eleven PrometheusRules.</div>"]
+      style 40 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      41["<div style='font-weight: bold'>alertmanager</div><div style='font-size: 70%; margin-top: 0px'>[Container: kube-prometheus-stack]</div><div style='font-size: 80%; margin-top:10px'>Routes firing alerts to<br />route-a-kafka by default;<br />Kafka's own alerts<br />(KafkaBrokerDown,<br />KafkaRelayLag,<br />AlertsBridgeDown,<br />KafkaRelayDown) take<br />route-b-forwarder instead.</div>"]
+      style 41 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
-    subgraph 5 ["Alert Triage"]
-      style 5 fill:#ffffff,stroke:#131921,color:#131921
-
-      6["<div style='font-weight: bold'>ingest</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>HMAC-verifies webhooks,<br />normalises to the canonical<br />alert, scrubs PII, dedups by<br />fingerprint, enqueues.</div>"]
-      style 6 fill:#14b8a6,stroke:#0e8074,color:#0e1419
-    end
-
-    4-. "<div>fire: synthetic alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
+    4-. "<div>fire: synthetic alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->5
     4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->27
     4-. "<div>chaos: patch ConfigMap</div><div style='font-size: 70%'>[kubectl]</div>" .->33
-    27-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
-    36-. "<div>scrape</div><div style='font-size: 70%'></div>" .->33
-    36-. "<div>scrape</div><div style='font-size: 70%'></div>" .->34
-    36-. "<div>scrape</div><div style='font-size: 70%'></div>" .->35
-    36-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->37
-    37-. "<div>route B webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->27
+    27-. "<div>GET /chaos (bearer)</div><div style='font-size: 70%'>[HTTPS]</div>" .->5
+    40-. "<div>scrape</div><div style='font-size: 70%'></div>" .->33
+    40-. "<div>scrape</div><div style='font-size: 70%'></div>" .->34
+    40-. "<div>scrape</div><div style='font-size: 70%'></div>" .->35
+    40-. "<div>scrape broker JMX</div><div style='font-size: 70%'></div>" .->36
+    40-. "<div>scrape</div><div style='font-size: 70%'></div>" .->37
+    40-. "<div>scrape</div><div style='font-size: 70%'></div>" .->38
+    40-. "<div>scrape</div><div style='font-size: 70%'></div>" .->39
+    40-. "<div>firing alerts</div><div style='font-size: 70%'></div>" .->41
+    33-. "<div>produce card.authorized</div><div style='font-size: 70%'></div>" .->36
+    34-. "<div>consume card.authorized,<br />produce fraud.scored</div><div style='font-size: 70%'></div>" .->36
+    35-. "<div>consume fraud.scored</div><div style='font-size: 70%'></div>" .->36
+    37-. "<div>read consumer group offsets</div><div style='font-size: 70%'></div>" .->36
+    41-. "<div>route A webhook</div><div style='font-size: 70%'>[HTTPS]</div>" .->38
+    38-. "<div>produce alerts.raw</div><div style='font-size: 70%'></div>" .->36
+    39-. "<div>consume alerts.raw</div><div style='font-size: 70%'></div>" .->36
+    39-. "<div>HTTPS + HMAC (route A)</div><div style='font-size: 70%'></div>" .->5
+    41-. "<div>route B (Kafka's own alerts)</div><div style='font-size: 70%'>[HTTPS]</div>" .->27
 
   end
