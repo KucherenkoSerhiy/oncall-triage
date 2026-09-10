@@ -30,7 +30,8 @@ alertmanager:
     global:
       resolve_timeout: 5m
     route:
-      receiver: route-b-forwarder
+      receiver: "null"
+      group_by: ["alertname", "service"]
       group_wait: 10s
       group_interval: 30s
       repeat_interval: 1h
@@ -44,9 +45,19 @@ alertmanager:
       # receiver \"null\" used in route") and the StatefulSet never gets
       # created - `helm upgrade --wait` still reports success because
       # `--wait` doesn't track this operator-managed CRD's reconciliation.
-      # Clearing `routes` here removes that inherited sub-route.
-      routes: []
+      # Clearing `routes` here removes that inherited sub-route - and the
+      # explicit child route below is the only path to the forwarder: kind
+      # has no reachable kube-scheduler / etcd / kube-proxy endpoints, so the
+      # upstream TargetDown/Watchdog alerts would otherwise flood the spine
+      # (each one costs an LLM call - the first demo shipped nine of them).
+      # Only alerts that name a bank service leave the cluster (#69).
+      routes:
+        - receiver: route-b-forwarder
+          matchers:
+            - service =~ "cards-authorization|fraud-scoring|open-banking-api|kafka|kafka-relay|alerts-bridge"
+          continue: false
     receivers:
+      - name: "null"
       - name: route-b-forwarder
         webhook_configs:
           - url: "__FORWARDER_URL__"
@@ -67,3 +78,15 @@ prometheus:
   service:
     type: NodePort
     nodePort: 30090
+
+# kind runs the control plane as static pods without the scrape endpoints
+# these upstream groups expect; they only ever fire TargetDown. Keeping the
+# node / kubelet / prometheus-operator groups so real cluster trouble still
+# shows (routed to `null` unless a bank service label is present).
+defaultRules:
+  rules:
+    etcd: false
+    kubeScheduler: false
+    kubeControllerManager: false
+    kubeProxy: false
+    general: false
