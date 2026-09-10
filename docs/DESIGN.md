@@ -96,9 +96,9 @@ demonstrable on day one, exactly as the repo does today.
 | `ledger` | AWS Lambda ← SQS | double-entry posting worker | `reconciliation-mismatch`, `lag` (queue age) | CloudWatch on SQS `ApproximateAgeOfOldestMessage` | M4 ✅ |
 | `auth` | AWS Lambda | token issuance / JWKS | `jwks-rotation` (unknown key id), `lockouts` | CloudWatch on custom metric `AuthFailures` | M4 ✅ |
 | `customer-notifications` | Azure Function | SMS / e-mail fan-out | `provider-429`, `backlog` | Azure Monitor metric alert on Function failures + storage-queue length | M5 ✅ |
-| `cards-authorization` | Kubernetes (kind) | ISO-8583-ish auth switch; **produces** `card.authorized` | `timeouts`, `issuer-down` | Prometheus rule on request p99 / error ratio | M6a code / M6b cluster |
-| `fraud-scoring` | Kubernetes (kind) | ML scoring; **consumes** `card.authorized`, **produces** `fraud.scored` | `model-drift`, `latency`, `crashloop`, `lag` (stops consuming) | Prometheus rules on `fraud_score_bucket` drift, pod restarts, `kafka_consumergroup_lag` | M6a code / M6b cluster |
-| `open-banking-api` | Kubernetes (kind) | PSD2 third-party API gateway; **consumes** `fraud.scored` | `rate-limit-storm` (429s), `cert-expiry` | Prometheus rules on 429 ratio, `probe_ssl_earliest_cert_expiry` | M6a code / M6b cluster |
+| `cards-authorization` | Kubernetes (kind) | ISO-8583-ish auth switch; **produces** `card.authorized` | `timeouts`, `issuer-down` | Prometheus rule on request p99 / error ratio | M6 (kind) |
+| `fraud-scoring` | Kubernetes (kind) | ML scoring; **consumes** `card.authorized`, **produces** `fraud.scored` | `model-drift`, `latency`, `crashloop`, `lag` (stops consuming) | Prometheus rules on `fraud_score_bucket` drift, pod restarts, `kafka_consumergroup_lag` | M6 (kind) |
+| `open-banking-api` | Kubernetes (kind) | PSD2 third-party API gateway; **consumes** `fraud.scored` | `rate-limit-storm` (429s), `cert-expiry` | Prometheus rules on 429 ratio, `probe_ssl_earliest_cert_expiry` | M6 (kind) |
 | *(platform)* | Kubernetes (kind) | Kafka broker (Strimzi, KRaft, 1 node), Prometheus, Alertmanager, relay | `broker-down` (scale Kafka to 0) | Alertmanager `KafkaBrokerDown`, `KafkaRelayLag` | M7 |
 
 ## 4. Architecture

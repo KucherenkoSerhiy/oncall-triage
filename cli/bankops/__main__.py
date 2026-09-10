@@ -49,6 +49,12 @@ def _build_parser() -> argparse.ArgumentParser:
     chaos.add_argument("--minutes", type=int, default=5)
     chaos.add_argument("--clear", action="store_true")
     chaos.add_argument("--status", action="store_true")
+    chaos.add_argument(
+        "--estate",
+        default="aws",
+        choices=["aws", "kubernetes"],
+        help="aws: console API route (default); kubernetes: kubectl patch nordwind-faults",
+    )
 
     return parser
 

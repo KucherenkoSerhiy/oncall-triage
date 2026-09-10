@@ -63,10 +63,15 @@ jobs:
           soft_fail: false
 
   helm:
-    name: helm - lint, kubeconform, trivy config
+    name: helm - lint, kubeconform, trivy config, Taskfile validity
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: arduino/setup-task@v3
+        with:
+          version: "3.53.1"
+      - name: Taskfile.yml is valid (catches YAML/templating errors in the estate-* tasks)
+        run: task --list
       - uses: azure/setup-helm@v4
         with:
           version: "v3.17.1"

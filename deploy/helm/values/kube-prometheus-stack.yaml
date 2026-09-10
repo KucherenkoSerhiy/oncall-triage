@@ -16,6 +16,10 @@
 # `task estate-up`); with no URL supplied it substitutes a dummy local
 # address instead, so this file renders as valid YAML - and `helm lint`
 # passes on the `nordwind-bank` chart - even before a forwarder exists.
+#
+# M6b: Prometheus and Alertmanager are exposed as NodePort Services (30090,
+# 30093) so `deploy/kind/cluster.yaml`'s extraPortMappings can forward them
+# to localhost:9090/9093 with no `kubectl port-forward`.
 
 grafana:
   enabled: false
@@ -30,11 +34,26 @@ alertmanager:
       group_wait: 10s
       group_interval: 30s
       repeat_interval: 1h
+      # Helm deep-merges `config` with the chart's own default config
+      # (values.yaml, not this file) rather than replacing it outright:
+      # our `receivers` list below fully replaces the default one (Helm
+      # only deep-merges maps, not lists), but the default `route.routes`
+      # sub-route sending `alertname: Watchdog` to a `null` receiver is a
+      # map and survives the merge. With no `null` receiver left, the
+      # operator refuses to provision Alertmanager at all ("undefined
+      # receiver \"null\" used in route") and the StatefulSet never gets
+      # created - `helm upgrade --wait` still reports success because
+      # `--wait` doesn't track this operator-managed CRD's reconciliation.
+      # Clearing `routes` here removes that inherited sub-route.
+      routes: []
     receivers:
       - name: route-b-forwarder
         webhook_configs:
           - url: "__FORWARDER_URL__"
             send_resolved: true
+  service:
+    type: NodePort
+    nodePort: 30093
 
 prometheus:
   prometheusSpec:
@@ -45,3 +64,6 @@ prometheus:
     # deploy/helm/nordwind-bank/README.md for why that label is kept too.
     ruleSelectorNilUsesHelmValues: false
     serviceMonitorSelectorNilUsesHelmValues: false
+  service:
+    type: NodePort
+    nodePort: 30090

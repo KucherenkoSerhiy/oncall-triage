@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from bank.aws.common import VALID_MODES
+from bank.faults import VALID_MODES as K8S_VALID_MODES
 from cli.bankops import client
 from services.ingest.hmac_auth import sign
 
@@ -151,12 +153,68 @@ def _print_chaos_status(config: Config) -> None:
     for fault in faults:
         remaining = max(0, int((fault["until"] - time.time()) // 60))
         print(_format_row((fault["service"], fault["mode"], remaining), _CHAOS_WIDTHS))
+    print(
+        "hint: this only shows the AWS estate; for Kubernetes run "
+        "`kubectl -n bank get configmap nordwind-faults` or `task estate-status`"
+    )
+
+
+def _kubectl_patch_fault(service: str, mode: str) -> None:
+    patch = json.dumps({"data": {service: mode}})
+    argv = [
+        "kubectl",
+        "-n",
+        "bank",
+        "patch",
+        "configmap",
+        "nordwind-faults",
+        "--type",
+        "merge",
+        "-p",
+        patch,
+    ]
+    subprocess.run(argv, check=True)  # noqa: S603 - fixed argv, no shell, kubectl expected on PATH
+
+
+def _cmd_chaos_kubernetes(args: argparse.Namespace) -> int:
+    if not args.service:
+        print("error: service is required unless --status is given")
+        return 1
+
+    valid_modes = K8S_VALID_MODES.get(args.service)
+    if valid_modes is None:
+        print(
+            f"error: unknown service {args.service!r}; valid services: {', '.join(K8S_VALID_MODES)}"
+        )
+        return 1
+
+    if args.clear:
+        _kubectl_patch_fault(args.service, "")
+        print(f"cleared fault on {args.service} (kubernetes)")
+        return 0
+
+    if not args.mode:
+        print("error: --mode or --clear is required")
+        return 1
+    if args.mode not in valid_modes:
+        print(
+            f"error: invalid mode {args.mode!r} for {args.service}; "
+            f"valid modes: {', '.join(valid_modes)}"
+        )
+        return 1
+
+    _kubectl_patch_fault(args.service, args.mode)
+    print(f"service={args.service} mode={args.mode} estate=kubernetes")
+    return 0
 
 
 def cmd_chaos(args: argparse.Namespace, config: Config) -> int:
     if args.status:
         _print_chaos_status(config)
         return 0
+
+    if args.estate == "kubernetes":
+        return _cmd_chaos_kubernetes(args)
 
     if not args.service:
         print("error: service is required unless --status is given")

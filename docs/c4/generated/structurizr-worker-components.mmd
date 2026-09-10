@@ -31,6 +31,9 @@ graph LR
       style 15 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
+    10-. "<div>model turns</div><div style='font-size: 70%'></div>" .->14
+    11-. "<div>model turns</div><div style='font-size: 70%'></div>" .->14
+    14-. "<div>HTTPS</div><div style='font-size: 70%'></div>" .->3
     9-. "<div>get_alert, get_recent_alerts,<br />check_known, remember_issue</div><div style='font-size: 70%'></div>" .->12
     9-. "<div>transfer: new error</div><div style='font-size: 70%'></div>" .->10
     9-. "<div>transfer: known or<br />characterised error</div><div style='font-size: 70%'></div>" .->11
@@ -39,8 +42,5 @@ graph LR
     13-. "<div>DynamoStore reads/writes</div><div style='font-size: 70%'></div>" .->15
     12-. "<div>get_alert / get_recent_alerts</div><div style='font-size: 70%'></div>" .->15
     9-. "<div>model turns</div><div style='font-size: 70%'></div>" .->14
-    10-. "<div>model turns</div><div style='font-size: 70%'></div>" .->14
-    11-. "<div>model turns</div><div style='font-size: 70%'></div>" .->14
-    14-. "<div>HTTPS</div><div style='font-size: 70%'></div>" .->3
 
   end

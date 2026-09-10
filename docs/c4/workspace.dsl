@@ -47,14 +47,12 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             forwarder = container "alert forwarder" "Receives Azure Monitor action-group calls and Alertmanager route-B webhooks, signs with HMAC, posts to ingest." "Azure Function (Python)"
         }
 
-        k8sEstate = softwareSystem "Nordwind Kubernetes estate (kind)" "Three bank services on Kubernetes with Prometheus, Alertmanager and a Strimzi Kafka backbone. Runs in kind on a laptop or a GitHub Actions runner." {
-            cards = container "cards-authorization" "ISO-8583-style auth switch; produces card.authorized. Chaos: timeouts, issuer-down." "Deployment (Python)"
-            fraud = container "fraud-scoring" "Consumes card.authorized, produces fraud.scored. Chaos: model-drift, latency, crashloop, lag." "Deployment (Python)"
-            openBanking = container "open-banking-api" "PSD2 third-party API gateway; consumes fraud.scored. Chaos: rate-limit-storm, cert-expiry." "Deployment (Python)"
-            kafka = container "Kafka" "Topics: card.authorized, fraud.scored, alerts.raw. SASL/SCRAM per client." "Strimzi (KRaft, 1 broker) + kafka-exporter" "Queue"
-            prometheus = container "Prometheus + Alertmanager" "Scrapes services and kafka-exporter; alert rules; Alertmanager routes A (Kafka) and B (HTTPS)." "kube-prometheus-stack"
-            bridge = container "alerts-bridge" "Alertmanager webhook receiver that produces canonical alerts to alerts.raw." "Deployment (Python)"
-            relay = container "kafka-relay" "Consumes alerts.raw, signs with HMAC, POSTs to ingest - the hop out of Kafka." "Deployment (Python)"
+        k8sEstate = softwareSystem "Nordwind Kubernetes estate (kind)" "Three bank services on Kubernetes with Prometheus and Alertmanager (route B). Kafka and route A arrive in M7. Runs in kind on a laptop or a GitHub Actions runner." {
+            cards = container "cards-authorization" "ISO-8583-style auth switch. Chaos: timeouts, issuer-down." "Deployment (Python)"
+            fraud = container "fraud-scoring" "ML scoring. Chaos: model-drift, latency, crashloop, lag." "Deployment (Python)"
+            openBanking = container "open-banking-api" "PSD2 third-party API gateway. Chaos: rate-limit-storm, cert-expiry." "Deployment (Python)"
+            prometheus = container "prometheus" "Scrapes the three services' /metrics every 15s; evaluates the six PrometheusRules." "kube-prometheus-stack"
+            alertmanager = container "alertmanager" "Routes firing alerts to route-b-forwarder (webhook)." "kube-prometheus-stack"
         }
 
         // people
@@ -86,18 +84,11 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         azureEstate.forwarder -> triage.ingest "canonical alert" "HTTPS + HMAC"
 
         // Kubernetes estate
-        k8sEstate.cards -> k8sEstate.kafka "produce card.authorized"
-        k8sEstate.fraud -> k8sEstate.kafka "consume card.authorized, produce fraud.scored"
-        k8sEstate.openBanking -> k8sEstate.kafka "consume fraud.scored"
-        k8sEstate.prometheus -> k8sEstate.cards "scrapes /metrics"
-        k8sEstate.prometheus -> k8sEstate.fraud "scrapes /metrics"
-        k8sEstate.prometheus -> k8sEstate.openBanking "scrapes /metrics"
-        k8sEstate.prometheus -> k8sEstate.kafka "scrapes kafka-exporter (consumer lag)"
-        k8sEstate.prometheus -> k8sEstate.bridge "route A: Alertmanager webhook"
-        k8sEstate.bridge -> k8sEstate.kafka "produce alerts.raw"
-        k8sEstate.kafka -> k8sEstate.relay "consume alerts.raw"
-        k8sEstate.relay -> triage.ingest "canonical alert" "HTTPS + HMAC"
-        k8sEstate.prometheus -> azureEstate.forwarder "route B: KafkaBrokerDown, KafkaRelayLag, or route A failing" "HTTPS"
+        k8sEstate.prometheus -> k8sEstate.cards "scrape"
+        k8sEstate.prometheus -> k8sEstate.fraud "scrape"
+        k8sEstate.prometheus -> k8sEstate.openBanking "scrape"
+        k8sEstate.prometheus -> k8sEstate.alertmanager "firing alerts"
+        k8sEstate.alertmanager -> azureEstate.forwarder "route B webhook" "HTTPS"
 
         // brain
         triage.ingest -> triage.store "put alert"
@@ -124,30 +115,6 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         triage.worker.llm -> claude "HTTPS"
 
         demo = deploymentEnvironment "demo" {
-            deploymentNode "GitHub" "" "github.com" {
-                deploymentNode "Actions runner" "ubuntu-latest, 7 GB" "estate-demo.yml" {
-                    deploymentNode "kind cluster" "Kubernetes in Docker" "kind" {
-                        containerInstance k8sEstate.cards
-                        containerInstance k8sEstate.fraud
-                        containerInstance k8sEstate.openBanking
-                        containerInstance k8sEstate.kafka
-                        containerInstance k8sEstate.prometheus
-                        containerInstance k8sEstate.bridge
-                        containerInstance k8sEstate.relay
-                    }
-                }
-            }
-            deploymentNode "Laptop" "" "Docker Desktop" {
-                deploymentNode "kind cluster (dev)" "" "kind" {
-                    containerInstance k8sEstate.cards
-                    containerInstance k8sEstate.fraud
-                    containerInstance k8sEstate.openBanking
-                    containerInstance k8sEstate.kafka
-                    containerInstance k8sEstate.prometheus
-                    containerInstance k8sEstate.bridge
-                    containerInstance k8sEstate.relay
-                }
-            }
             deploymentNode "AWS" "eu-north-1" "Terraform: infra/aws" {
                 deploymentNode "Lambda" "" "AWS Lambda" {
                     containerInstance triage.ingest
@@ -202,6 +169,27 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 infrastructureNode "NS delegation"
             }
         }
+
+        kind = deploymentEnvironment "kind" {
+            deploymentNode "Laptop" "" "Docker Desktop, ~6 GB RAM" {
+                deploymentNode "kind cluster" "task estate-up" "kind" {
+                    containerInstance k8sEstate.cards
+                    containerInstance k8sEstate.fraud
+                    containerInstance k8sEstate.openBanking
+                    containerInstance k8sEstate.prometheus
+                    containerInstance k8sEstate.alertmanager
+                }
+            }
+            deploymentNode "GitHub Actions runner" "ubuntu-latest" "estate-demo.yml" {
+                deploymentNode "kind cluster" "task estate-up" "kind" {
+                    containerInstance k8sEstate.cards
+                    containerInstance k8sEstate.fraud
+                    containerInstance k8sEstate.openBanking
+                    containerInstance k8sEstate.prometheus
+                    containerInstance k8sEstate.alertmanager
+                }
+            }
+        }
     }
 
     views {
@@ -215,7 +203,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             autolayout lr
         }
 
-        container k8sEstate "k8s-estate" "Level 2 - the Kubernetes estate: services, Kafka, Prometheus, the two alert routes." {
+        container k8sEstate "k8s-estate" "Level 2 - the Kubernetes estate: three services, Prometheus, Alertmanager route B. Kafka and route A arrive in M7." {
             include *
             include triage.ingest azureEstate.forwarder
             autolayout lr
@@ -226,7 +214,12 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             autolayout lr
         }
 
-        deployment * demo "deployment" "Where every container runs in the demo environment." {
+        deployment * demo "deployment" "Where every container runs in the demo environment (AWS, Azure, Anthropic, Cloudflare)." {
+            include *
+            autolayout lr
+        }
+
+        deployment * kind "deployment-kind" "Where the Kubernetes estate runs: laptop for development, GitHub Actions for the repeatable estate-demo.yml." {
             include *
             autolayout lr
         }
