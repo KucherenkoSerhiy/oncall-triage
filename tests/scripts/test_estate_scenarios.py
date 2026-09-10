@@ -151,7 +151,188 @@ def test_main_scenario_list_prints_all_scenarios(capsys):
     assert "broker-down (M7)" in out
 
 
-def test_main_m7_scenario_exits_2(capsys):
-    exit_code = estate_scenarios.main(["--scenario", "fraud-lag"])
+def test_run_fraud_lag_happy_path(monkeypatch):
+    patch_calls = []
 
-    assert exit_code == 2
+    def fake_run(argv, check=False):
+        patch_calls.append(json.loads(argv[-1]))
+
+    verdict_alert = {
+        "alert_id": "a2",
+        "estate": "kubernetes",
+        "service": "fraud-scoring",
+        "alert_name": "KafkaConsumerLag",
+        "received_at": "9999-01-01T00:00:01",
+        "labels": {"route": "A"},
+        "verdict": {"known": False, "action": "page", "model": "claude", "summary": "lag"},
+    }
+    listed = {**verdict_alert, "verdict": None}
+    responses = iter(
+        [
+            _alertmanager_response("SomethingElse"),
+            _alertmanager_response("KafkaConsumerLag"),
+            _spine_alerts(),
+            _spine_alerts(listed),
+            (200, json.dumps(verdict_alert).encode()),
+        ]
+    )
+    monkeypatch.setattr(estate_scenarios, "http", lambda *a, **k: next(responses))
+    monkeypatch.setattr(estate_scenarios.time, "sleep", lambda _: None)
+
+    alert = estate_scenarios.run_fraud_lag(
+        "http://localhost:9093", "https://api.example", "t", run=fake_run
+    )
+
+    assert alert["alert_id"] == "a2"
+    assert patch_calls[0] == {"data": {"fraud-scoring": "lag"}}
+    assert patch_calls[-1] == {"data": {"fraud-scoring": ""}}
+
+
+def test_run_fraud_lag_fails_when_rule_never_fires(monkeypatch):
+    patch_calls = []
+
+    def fake_run(argv, check=False):
+        patch_calls.append(json.loads(argv[-1]))
+
+    monkeypatch.setattr(estate_scenarios, "http", lambda *a, **k: _alertmanager_response())
+    monkeypatch.setattr(estate_scenarios.time, "sleep", lambda _: None)
+
+    with pytest.raises(smoke.SmokeError, match="never fired"):
+        estate_scenarios.run_fraud_lag(
+            "http://localhost:9093", "https://api.example", "t", alert_timeout=0, run=fake_run
+        )
+
+    assert patch_calls[-1] == {"data": {"fraud-scoring": ""}}
+
+
+def test_run_fraud_lag_fails_when_verdict_took_the_wrong_route(monkeypatch):
+    verdict_alert = {
+        "alert_id": "a2",
+        "estate": "kubernetes",
+        "service": "fraud-scoring",
+        "alert_name": "KafkaConsumerLag",
+        "received_at": "9999-01-01T00:00:01",
+        "labels": {"route": "B"},
+        "verdict": {"known": False, "action": "page", "model": "claude", "summary": "lag"},
+    }
+    listed = {**verdict_alert, "verdict": None}
+    responses = iter(
+        [
+            _alertmanager_response("KafkaConsumerLag"),
+            _spine_alerts(listed),
+            (200, json.dumps(verdict_alert).encode()),
+        ]
+    )
+    monkeypatch.setattr(estate_scenarios, "http", lambda *a, **k: next(responses))
+    monkeypatch.setattr(estate_scenarios.time, "sleep", lambda _: None)
+
+    with pytest.raises(smoke.SmokeError, match="expected 'A'"):
+        estate_scenarios.run_fraud_lag(
+            "http://localhost:9093", "https://api.example", "t", run=lambda argv, check=False: None
+        )
+
+
+def test_run_broker_down_happy_path(monkeypatch):
+    patch_calls = []
+
+    def fake_run(argv, check=False):
+        patch_calls.append(argv)
+
+    verdict_alert = {
+        "alert_id": "a3",
+        "estate": "kubernetes",
+        "service": "kafka",
+        "alert_name": "KafkaBrokerDown",
+        "received_at": "9999-01-01T00:00:01",
+        "labels": {"route": "B"},
+        "verdict": {"known": False, "action": "page", "model": "claude", "summary": "broker down"},
+    }
+    listed = {**verdict_alert, "verdict": None}
+    responses = iter(
+        [
+            _alertmanager_response("KafkaBrokerDown"),
+            _spine_alerts(listed),
+            (200, json.dumps(verdict_alert).encode()),
+        ]
+    )
+    monkeypatch.setattr(estate_scenarios, "http", lambda *a, **k: next(responses))
+    monkeypatch.setattr(estate_scenarios.time, "sleep", lambda _: None)
+
+    alert = estate_scenarios.run_broker_down(
+        "http://localhost:9093", "https://api.example", "t", run=fake_run
+    )
+
+    assert alert["alert_id"] == "a3"
+    assert any(argv[:4] == ["kubectl", "-n", "bank", "patch"] for argv in patch_calls)
+    assert any(argv[:4] == ["kubectl", "-n", "bank", "wait"] for argv in patch_calls)
+
+
+def test_run_broker_down_fails_when_rule_never_fires(monkeypatch):
+    monkeypatch.setattr(estate_scenarios, "http", lambda *a, **k: _alertmanager_response())
+    monkeypatch.setattr(estate_scenarios.time, "sleep", lambda _: None)
+
+    with pytest.raises(smoke.SmokeError, match="never fired"):
+        estate_scenarios.run_broker_down(
+            "http://localhost:9093",
+            "https://api.example",
+            "t",
+            alert_timeout=0,
+            run=lambda argv, check=False: None,
+        )
+
+
+def test_run_broker_down_fails_when_verdict_took_the_wrong_route(monkeypatch):
+    verdict_alert = {
+        "alert_id": "a3",
+        "estate": "kubernetes",
+        "service": "kafka",
+        "alert_name": "KafkaBrokerDown",
+        "received_at": "9999-01-01T00:00:01",
+        "labels": {"route": "A"},
+        "verdict": {"known": False, "action": "page", "model": "claude", "summary": "broker down"},
+    }
+    listed = {**verdict_alert, "verdict": None}
+    responses = iter(
+        [
+            _alertmanager_response("KafkaBrokerDown"),
+            _spine_alerts(listed),
+            (200, json.dumps(verdict_alert).encode()),
+        ]
+    )
+    monkeypatch.setattr(estate_scenarios, "http", lambda *a, **k: next(responses))
+    monkeypatch.setattr(estate_scenarios.time, "sleep", lambda _: None)
+
+    with pytest.raises(smoke.SmokeError, match="expected 'B'"):
+        estate_scenarios.run_broker_down(
+            "http://localhost:9093", "https://api.example", "t", run=lambda argv, check=False: None
+        )
+
+
+def test_main_prints_the_route_the_verdict_took(monkeypatch, capsys):
+    verdict_alert = {
+        "alert_id": "a1",
+        "estate": "kubernetes",
+        "service": "cards-authorization",
+        "alert_name": "CardsAuthHighLatency",
+        "received_at": "9999-01-01T00:00:01",
+        "labels": {"route": "B"},
+        "verdict": {"known": False, "action": "page", "model": "claude", "summary": "high latency"},
+    }
+    listed = {**verdict_alert, "verdict": None}
+    responses = iter(
+        [
+            _alertmanager_response("CardsAuthHighLatency"),
+            _spine_alerts(listed),
+            (200, json.dumps(verdict_alert).encode()),
+        ]
+    )
+    monkeypatch.setattr(estate_scenarios, "http", lambda *a, **k: next(responses))
+    monkeypatch.setattr(estate_scenarios.time, "sleep", lambda _: None)
+    monkeypatch.setattr(estate_scenarios, "set_fault", lambda *a, **k: None)
+    monkeypatch.setattr(estate_scenarios, "clear_fault", lambda *a, **k: None)
+    monkeypatch.setenv("SMOKE_TOKEN", "t")
+
+    exit_code = estate_scenarios.main(["--scenario", "cards-timeouts"])
+
+    assert exit_code == 0
+    assert "route=B" in capsys.readouterr().out

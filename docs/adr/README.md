@@ -18,3 +18,4 @@ One record per decision row in [DESIGN.md](../DESIGN.md) section 2. Format: ligh
 | [0012](0012-public-repo-and-nightly-demo.md) | Repository goes public at M2; the estate demo runs nightly |
 | [0013](0013-showcase-quality-bar.md) | Showcase first: every milestone ships tests, docs and updated diagrams |
 | [0014](0014-managed-organization-member-account.md) | Workloads live in a member account of the owner's AWS Organization; AWS-managed guardrails are kept |
+| [0015](0015-route-a-relay-instead-of-a-public-kafka-endpoint.md) | Route A relay instead of a public Kafka endpoint |

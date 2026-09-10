@@ -28,7 +28,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             api = container "console API" "Reads alerts and verdicts; accepts taught known issues. Bearer-token protected (v1)." "AWS Lambda + API Gateway HTTP API"
             console = container "incident console" "Live alert list, verdicts, known-issues editor." "Static site on S3 + CloudFront at triage.serhiykucherenko.dev" "Browser"
             secrets = container "secrets" "Anthropic key and webhook HMAC secret." "SSM Parameter Store (SecureString)"
-            dashboard = container "self-observability" "Ingest rate, verdict latency p50/p95, tokens per day, DLQ depth; SLO 95% of verdicts within 90 s." "CloudWatch dashboard + alarms"
+            dashboard = container "self-observability" "Ingest rate, verdict latency p95, DLQ depth, SLO attainment; five ops alarms." "CloudWatch dashboard"
+            ops = container "ops topic" "Human-only: CloudWatch alarm state changes for the triage brain itself, never fed back into ingest." "SNS" "Queue"
+            sloReporter = container "slo-reporter" "Daily (00:15 UTC): reads yesterday's triaged alerts and verdicts, computes latency p95 and SLO attainment." "AWS Lambda (Python)"
             dns = container "dns" "DNSSEC-signed; query logs" "Route 53 hosted zone"
         }
 
@@ -48,12 +50,16 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             forwarder = container "alert forwarder" "Receives Azure Monitor action-group calls and Alertmanager route-B webhooks, signs with HMAC, posts to ingest." "Azure Function (Python)"
         }
 
-        k8sEstate = softwareSystem "Nordwind Kubernetes estate (kind)" "Three bank services on Kubernetes with Prometheus and Alertmanager (route B). Kafka and route A arrive in M7. Runs in kind on a laptop or a GitHub Actions runner." {
+        k8sEstate = softwareSystem "Nordwind Kubernetes estate (kind)" "Three bank services plus a Kafka backbone on Kubernetes, with Prometheus and Alertmanager routing alerts over Kafka (route A) or straight to the forwarder (route B, Kafka's own alerts). Runs in kind on a laptop or a GitHub Actions runner." {
             cards = container "cards-authorization" "ISO-8583-style auth switch. Chaos: timeouts, issuer-down." "Deployment (Python)"
             fraud = container "fraud-scoring" "ML scoring. Chaos: model-drift, latency, crashloop, lag." "Deployment (Python)"
             openBanking = container "open-banking-api" "PSD2 third-party API gateway. Chaos: rate-limit-storm, cert-expiry." "Deployment (Python)"
-            prometheus = container "prometheus" "Scrapes the three services' /metrics every 15s; evaluates the six PrometheusRules." "kube-prometheus-stack"
-            alertmanager = container "alertmanager" "Routes firing alerts to route-b-forwarder (webhook)." "kube-prometheus-stack"
+            kafka = container "kafka" "Business event backbone and alert transport: card.authorized, fraud.scored, alerts.raw." "Strimzi (KRaft)" "Queue"
+            kafkaExporter = container "kafka-exporter" "Exports per-consumer-group lag (kafka_consumergroup_lag). Chaos: broker-down (scales the broker KafkaNodePool to 0)." "Strimzi kafka-exporter"
+            alertsBridge = container "alerts-bridge" "Alertmanager webhook receiver; produces one Kafka message per alert to alerts.raw (route A's first hop)." "Deployment (Python)"
+            kafkaRelay = container "kafka-relay" "Consumes alerts.raw, HMAC-signs, and POSTs to ingest (route A's second hop)." "Deployment (Python)"
+            prometheus = container "prometheus" "Scrapes services, Kafka, and kafka-exporter; evaluates the eleven PrometheusRules." "kube-prometheus-stack"
+            alertmanager = container "alertmanager" "Routes firing alerts to route-a-kafka by default; Kafka's own alerts (KafkaBrokerDown, KafkaRelayLag, AlertsBridgeDown, KafkaRelayDown) take route-b-forwarder instead." "kube-prometheus-stack"
         }
 
         // people
@@ -88,8 +94,20 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         k8sEstate.prometheus -> k8sEstate.cards "scrape"
         k8sEstate.prometheus -> k8sEstate.fraud "scrape"
         k8sEstate.prometheus -> k8sEstate.openBanking "scrape"
+        k8sEstate.prometheus -> k8sEstate.kafka "scrape broker JMX"
+        k8sEstate.prometheus -> k8sEstate.kafkaExporter "scrape"
+        k8sEstate.prometheus -> k8sEstate.alertsBridge "scrape"
+        k8sEstate.prometheus -> k8sEstate.kafkaRelay "scrape"
         k8sEstate.prometheus -> k8sEstate.alertmanager "firing alerts"
-        k8sEstate.alertmanager -> azureEstate.forwarder "route B webhook" "HTTPS"
+        k8sEstate.cards -> k8sEstate.kafka "produce card.authorized"
+        k8sEstate.fraud -> k8sEstate.kafka "consume card.authorized, produce fraud.scored"
+        k8sEstate.openBanking -> k8sEstate.kafka "consume fraud.scored"
+        k8sEstate.kafkaExporter -> k8sEstate.kafka "read consumer group offsets"
+        k8sEstate.alertmanager -> k8sEstate.alertsBridge "route A webhook" "HTTPS"
+        k8sEstate.alertsBridge -> k8sEstate.kafka "produce alerts.raw"
+        k8sEstate.kafkaRelay -> k8sEstate.kafka "consume alerts.raw"
+        k8sEstate.kafkaRelay -> triage.ingest "HTTPS + HMAC (route A)"
+        k8sEstate.alertmanager -> azureEstate.forwarder "route B (Kafka's own alerts)" "HTTPS"
 
         // brain
         triage.ingest -> triage.store "put alert"
@@ -101,6 +119,17 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         triage.worker -> claude "triage / research / report turns" "HTTPS"
         triage.console -> triage.api "GET alerts, verdicts; POST known-issue" "HTTPS"
         triage.api -> triage.store "query / put"
+
+        // self-observability (M9a) - mirrors the awsEstate.alarms pattern:
+        // each alarmed-on container feeds the topic directly ("alarm state
+        // change"), the same relationship shape as
+        // awsEstate.payments/ledger/auth -> awsEstate.alarms below.
+        triage.sloReporter -> triage.store "reads yesterday"
+        triage.sloReporter -> triage.dashboard "custom metrics"
+        triage.ingest -> triage.ops "alarm state change (IngestErrorRatio)"
+        triage.worker -> triage.ops "alarm state change (WorkerErrors, WorkerDurationP95, CapReached)"
+        triage.queue -> triage.ops "alarm state change (AlertsDlqDepth)"
+        triage.ops -> oncall "e-mail notification"
 
         // worker internals
         triage.worker.agent -> triage.worker.tools "get_alert, get_recent_alerts, check_known, remember_issue"
@@ -123,6 +152,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                     containerInstance awsEstate.payments
                     containerInstance awsEstate.ledger
                     containerInstance awsEstate.auth
+                    containerInstance triage.sloReporter
                 }
                 deploymentNode "API Gateway" "api.triage.serhiykucherenko.dev" "Amazon API Gateway (HTTP API)" {
                     containerInstance triage.api
@@ -133,6 +163,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 }
                 deploymentNode "SNS" "" "Amazon SNS" {
                     containerInstance awsEstate.alarms
+                    containerInstance triage.ops
                 }
                 deploymentNode "DynamoDB" "" "Amazon DynamoDB" {
                     containerInstance triage.store
@@ -185,6 +216,10 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                     containerInstance k8sEstate.cards
                     containerInstance k8sEstate.fraud
                     containerInstance k8sEstate.openBanking
+                    containerInstance k8sEstate.kafka
+                    containerInstance k8sEstate.kafkaExporter
+                    containerInstance k8sEstate.alertsBridge
+                    containerInstance k8sEstate.kafkaRelay
                     containerInstance k8sEstate.prometheus
                     containerInstance k8sEstate.alertmanager
                 }
@@ -194,6 +229,10 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                     containerInstance k8sEstate.cards
                     containerInstance k8sEstate.fraud
                     containerInstance k8sEstate.openBanking
+                    containerInstance k8sEstate.kafka
+                    containerInstance k8sEstate.kafkaExporter
+                    containerInstance k8sEstate.alertsBridge
+                    containerInstance k8sEstate.kafkaRelay
                     containerInstance k8sEstate.prometheus
                     containerInstance k8sEstate.alertmanager
                 }
@@ -212,7 +251,7 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
             autolayout lr
         }
 
-        container k8sEstate "k8s-estate" "Level 2 - the Kubernetes estate: three services, Prometheus, Alertmanager route B. Kafka and route A arrive in M7." {
+        container k8sEstate "k8s-estate" "Level 2 - the Kubernetes estate: three services, Kafka, alerts-bridge, kafka-relay, Prometheus, Alertmanager routing to both routes." {
             include *
             include triage.ingest azureEstate.forwarder
             autolayout lr
@@ -220,6 +259,22 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
 
         component triage.worker "worker-components" "Level 3 - inside the triage worker: the three ADK roles, tools, store adapters." {
             include *
+            autolayout lr
+        }
+
+        dynamic k8sEstate "route-a" "an alert travels over Kafka (route A)" {
+            k8sEstate.prometheus -> k8sEstate.alertmanager "rule fires"
+            k8sEstate.alertmanager -> k8sEstate.alertsBridge "route A webhook"
+            k8sEstate.alertsBridge -> k8sEstate.kafka "produce alerts.raw"
+            k8sEstate.kafkaRelay -> k8sEstate.kafka "consume alerts.raw"
+            k8sEstate.kafkaRelay -> triage.ingest "HTTPS + HMAC"
+            autolayout lr
+        }
+
+        dynamic k8sEstate "route-b" "the alert about Kafka takes route B" {
+            k8sEstate.prometheus -> k8sEstate.alertmanager "KafkaBrokerDown fires"
+            k8sEstate.alertmanager -> azureEstate.forwarder "route B webhook"
+            azureEstate.forwarder -> triage.ingest "HTTPS + HMAC"
             autolayout lr
         }
 

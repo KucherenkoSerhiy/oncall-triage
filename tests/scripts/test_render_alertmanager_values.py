@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import yaml
+
 from scripts.render_alertmanager_values import (
     CLUSTER_PLACEHOLDER,
     DEFAULT_CLUSTER_LABEL,
@@ -67,3 +69,57 @@ def test_real_values_file_has_no_placeholders_after_render():
         "kind-gha-1",
     )
     assert "__" not in rendered.replace("__pycache__", "")
+
+
+def test_real_values_file_has_no_placeholders_after_render_no_kafka():
+    from pathlib import Path
+
+    rendered = render(
+        Path("deploy/helm/values/kube-prometheus-stack.yaml").read_text(encoding="utf-8"),
+        "https://f.example/x",
+        "kind-gha-1",
+        kafka=False,
+    )
+    assert "__" not in rendered.replace("__pycache__", "")
+
+
+def test_kafka_routing_sends_kafka_alerts_to_route_b_and_everything_else_to_route_a():
+    from pathlib import Path
+
+    rendered = render(
+        Path("deploy/helm/values/kube-prometheus-stack.yaml").read_text(encoding="utf-8"),
+        "https://f.example/x",
+    )
+    config = yaml.safe_load(rendered)["alertmanager"]["config"]
+
+    assert config["route"]["receiver"] == "route-a-kafka"
+    child_route = config["route"]["routes"][0]
+    assert child_route["receiver"] == "route-b-forwarder"
+    assert child_route["continue"] is False
+    assert child_route["matchers"] == [
+        'alertname =~ "KafkaBrokerDown|KafkaRelayLag|AlertsBridgeDown|KafkaRelayDown"'
+    ]
+    receiver_names = {r["name"] for r in config["receivers"]}
+    assert receiver_names == {"route-a-kafka", "route-b-forwarder"}
+    kafka_receiver = next(r for r in config["receivers"] if r["name"] == "route-a-kafka")
+    assert (
+        kafka_receiver["webhook_configs"][0]["url"]
+        == "http://nordwind-bank-alerts-bridge.bank.svc:8080/alertmanager"
+    )
+    assert kafka_receiver["webhook_configs"][0]["send_resolved"] is True
+
+
+def test_no_kafka_routing_sends_everything_to_route_b():
+    from pathlib import Path
+
+    rendered = render(
+        Path("deploy/helm/values/kube-prometheus-stack.yaml").read_text(encoding="utf-8"),
+        "https://f.example/x",
+        kafka=False,
+    )
+    config = yaml.safe_load(rendered)["alertmanager"]["config"]
+
+    assert config["route"]["receiver"] == "route-b-forwarder"
+    assert "routes" not in config["route"]
+    assert [r["name"] for r in config["receivers"]] == ["route-b-forwarder"]
+    assert config["receivers"][0]["webhook_configs"][0]["url"] == "https://f.example/x"

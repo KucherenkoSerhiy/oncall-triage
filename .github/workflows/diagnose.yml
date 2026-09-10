@@ -41,6 +41,11 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Self-observability dashboard + ops alarm states (M9a)
+        run: |
+          echo "dashboard: https://$AWS_REGION.console.aws.amazon.com/cloudwatch/home?region=$AWS_REGION#dashboards:name=$PREFIX"
+          aws cloudwatch describe-alarms --alarm-name-prefix "${PREFIX}-ops-" --output json \
+            | jq -r '.MetricAlarms[] | "\(.StateValue)\t\(.AlarmName)\t\(.StateUpdatedTimestamp)"'
       - name: Lambda metrics (Errors / Throttles / Invocations / p95 Duration)
         run: |
           START=$(date -u -d "-${{ inputs.minutes }} minutes" +%Y-%m-%dT%H:%M:%SZ); END=$(date -u +%Y-%m-%dT%H:%M:%SZ)

@@ -89,3 +89,54 @@ Minimal choices made where the spec left room, for the record.
   installed by `task install`; a contributor running `task helm-check`
   needs them on PATH already, same as `terraform`/`tflint`/`checkov` for
   `task tf:*`).
+
+## M7b additions
+
+- **`alerts-bridge`'s Service is release-name-prefixed; the other four
+  aren't.** `deploy/helm/values/kube-prometheus-stack.yaml` is a values
+  file for a *different* Helm release (`monitoring`) and can't read
+  `nordwind-bank`'s `.Release.Name`, so its webhook URL has to be a literal
+  string. Rather than hardcode `nordwind-bank-alerts-bridge` in the
+  template too (a second, silently-driftable place naming the same
+  release), the Service's `metadata.name` is `{{ .Release.Name }}-alerts-bridge`
+  - correct as long as `Taskfile.yml`'s `estate-up` keeps installing this
+  chart under the release name `nordwind-bank`, same assumption the Kafka
+  bootstrap hostname already makes.
+- **`alerts-bridge`/`kafka-relay` are not in `.Values.services`.** That
+  list drives the generic `templates/{deployment,service,servicemonitor}.yaml`
+  loop, which mounts the fault ConfigMap and is rendered unconditionally.
+  Both new services need Kafka credentials unconditionally (no fault mode
+  of their own) and must not render at all when `kafka.enabled=false`, so
+  they get their own templates under `templates/kafka/` instead of joining
+  the loop.
+- **`render_alertmanager_values.py --kafka/--no-kafka` swaps a marked block
+  by exact string match, not by parsing YAML and re-dumping it.** The rest
+  of the file's existing tests assert on literal text (comments, formatting
+  survive rendering); re-serializing through `yaml.safe_dump` would pass
+  those tests' *behaviour* but silently drop every comment in the file.
+  Two marker comments (`__ROUTE_KAFKA_BLOCK_START__` / `_END__`) bracket the
+  `route:`/`receivers:` block; `kafka=True` (default) just strips the
+  markers, `kafka=False` replaces the whole bracketed block with the M6
+  routing.
+- **Alertmanager's route-A default drops the M6-era `null` receiver and
+  service-name filter entirely** (see `deploy/helm/values/kube-prometheus-stack.yaml`
+  and the M7b spec's requirement 3, quoted literally: "default receiver
+  `route-a-kafka`"). Every alert - including Kubernetes control-plane noise
+  that `defaultRules.rules` doesn't already silence - now flows through
+  `alerts-bridge` → Kafka → `kafka-relay` → ingest unless it matches one of
+  the four Kafka-alert names. `--no-kafka` keeps the old shape (everything
+  to `route-b-forwarder`, no Kafka receiver) since that's the literal "M6
+  routing" the spec asks for when there's no `alerts-bridge` to webhook to.
+- **`estate-demo.yml`'s AWS-credentials step moved before `task estate-up`.**
+  M7b's `estate-up` now creates the `nordwind-ingest` Secret from an SSM
+  parameter before installing the chart (kafka-relay's Deployment needs it
+  to reach Ready), so the OIDC role has to exist first - previously AWS
+  credentials were only configured after the cluster was already up, purely
+  to read `SMOKE_TOKEN`.
+- **`broker-down`'s final wait gets its own 300s budget**, separate from
+  `chaos_k8s.py`'s own 180s `kubectl wait` default: the spec calls it out
+  explicitly ("budget 5 min") as distinct from the alert-firing/verdict
+  budgets `fraud-lag` and `broker-down` otherwise share with `cards-timeouts`.
+  `scripts/estate_scenarios.py` calls `chaos_k8s.scale_kafka_node_pool` and
+  `chaos_k8s.wait_for_broker_ready(timeout="300s")` directly rather than
+  `chaos_k8s.kafka_clear()`, which hardcodes 180s.

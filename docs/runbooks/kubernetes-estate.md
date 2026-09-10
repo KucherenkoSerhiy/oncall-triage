@@ -82,6 +82,51 @@ timeout). Business events flow `cards-authorization` → `card.authorized` →
 `deploy/helm/nordwind-bank/README.md`'s Kafka section for the topic/user/ACL
 table and how to tail a topic.
 
+### The `nordwind-ingest` Secret
+
+Before installing the `nordwind-bank` chart, `task estate-up` also creates a
+plain Kubernetes Secret `nordwind-ingest` (key `hmac-secret`) that
+`kafka-relay`'s Deployment references by name - the chart itself never
+contains the value:
+
+```bash
+INGEST_HMAC_SECRET=$(aws ssm get-parameter --with-decryption \
+  --name /nordwind-triage/demo/ingest-hmac-secret --query Parameter.Value --output text)
+kubectl -n bank create secret generic nordwind-ingest \
+  --from-literal=hmac-secret="$INGEST_HMAC_SECRET" --dry-run=client -o yaml | kubectl apply -f -
+```
+
+The SSM parameter name matches `infra/aws/secrets.tf`'s
+`/${var.project}/${var.environment}/ingest-hmac-secret` (`hmac_secret_parameter`
+terraform output) - the same secret every other estate's ingest webhook
+signs with. This needs AWS credentials able to read that parameter;
+`estate-demo.yml` configures the same OIDC deploy role the `smoke` job in
+`deploy.yml` uses, *before* running `task estate-up`. Locally, run
+`aws sso login` (or otherwise have credentials for that role) before
+`task estate-up`.
+
+## Routes A and B (M7b)
+
+Every alert defaults to **route A**: Prometheus rule → Alertmanager →
+`alerts-bridge` (webhook, produces to Kafka's `alerts.raw`) → `kafka-relay`
+(consumes, HMAC-signs, POSTs to ingest). The four alerts *about* Kafka
+itself - `KafkaBrokerDown`, `KafkaRelayLag`, `AlertsBridgeDown`,
+`KafkaRelayDown` - take **route B** instead: Alertmanager →
+`bank/azure/alert_forwarder` → ingest, the same webhook route B already used
+before Kafka existed. See
+[ADR 0015](../adr/0015-route-a-relay-instead-of-a-public-kafka-endpoint.md)
+for why there are two routes at all, and `docs/DESIGN.md` §4.4 for the
+end-to-end diagram.
+
+**Proving which route a verdict took**: every canonical alert carries a
+`route` label (`"A"` or `"B"`) - `services/ingest/adapters/alertmanager.py`
+sets it from the Alertmanager receiver name (`"A"` if it contains `kafka`).
+On the console, open an alert and check its labels for `route`; from the
+API, `GET /alerts/{id}` returns it under `labels.route`. Both
+`scripts/estate_scenarios.py --scenario fraud-lag` (expects route A) and
+`--scenario broker-down` (expects route B) fail loudly if the verdict took
+the wrong route - see below.
+
 ### Lag inspection
 
 ```bash
@@ -130,8 +175,10 @@ Inject a fault with `task chaos-k8s -- <service> <mode>` (or
 | `cards-authorization` | `issuer-down` | `CardsAuthErrorRatio` (error ratio > 0.5) | 2m |
 | `fraud-scoring` | `model-drift` | `FraudScoreDrift` (mean score > 0.6) | 3m |
 | `fraud-scoring` | `crashloop` | `FraudScoringCrashLoop` (restarts > 2 / 10m) | - |
+| `fraud-scoring` | `lag` (M7b) | `KafkaConsumerLag` (`sum by (consumergroup)` > 50) | 2m |
 | `open-banking-api` | `rate-limit-storm` | `OpenBankingRateLimitStorm` (429 ratio > 0.5) | 2m |
 | `open-banking-api` | `cert-expiry` | `OpenBankingCertExpiringSoon` (< 14d to expiry) | - |
+| `kafka` | `broker-down` (M7b, `task chaos-k8s -- kafka broker-down`) | `KafkaBrokerDown` | 1m |
 
 ```bash
 task chaos-k8s -- cards-authorization timeouts
@@ -139,11 +186,24 @@ task estate-status   # watch CardsAuthHighLatency go from pending to firing
 task chaos-k8s -- cards-authorization clear
 ```
 
-`task estate-demo` runs the `cards-timeouts` scenario
-(`scripts/estate_scenarios.py`) end to end unattended: sets the fault, waits
-for `CardsAuthHighLatency` to fire in Alertmanager (budget 480s), waits for
-a verdict on the console API (budget 600s), prints it, and clears the fault
-in a `finally` regardless of outcome.
+`task estate-demo` runs three scenarios end to end unattended, in order,
+each clearing its own fault in a `finally` regardless of outcome:
+
+- `cards-timeouts`: `timeouts` on cards-authorization → `CardsAuthHighLatency`
+  → route B (budget 480s / 600s).
+- `fraud-lag` (M7b): `lag` on fraud-scoring (the consumer stops polling,
+  `kafka_consumergroup_lag` climbs) → `KafkaConsumerLag` → route A (budget
+  480s / 600s) - fails if the verdict's `labels.route` isn't `"A"`.
+- `broker-down` (M7b): `task chaos-k8s -- kafka broker-down` →
+  `KafkaBrokerDown` → route B (budget 480s / 600s), then `kafka clear` and a
+  wait for the broker pod `Ready` again (budget 300s) - fails if the
+  verdict's `labels.route` isn't `"B"`.
+
+Each prints `route=<A|B>` alongside the verdict, so a scan of the job log
+(or a local run) shows the two routes side by side: one verdict arrived over
+Kafka, the one about Kafka did not. Run one scenario directly with
+`python scripts/estate_scenarios.py --scenario fraud-lag` (needs
+`SMOKE_TOKEN` and, for route B checks, `FORWARDER_URL` set on the cluster).
 
 ## Reading `estate-demo` artifacts
 
@@ -156,8 +216,14 @@ uploads `estate-demo-<run id>` with, `if: always()`:
   evaluation state; a rule stuck `pending` past its `for:` duration, or
   never leaving `inactive`, points at the metric side (check the service's
   `/metrics`) rather than the alert-delivery side.
-- `<service>.log` for each of the three services - the ticker's normal
-  output plus, in `crashloop` mode, the `sys.exit(1)` and restart.
+- `<service>.log` for each of the five services (M7b adds `alerts-bridge`
+  and `kafka-relay` to the three from M6a) - the ticker's normal output
+  plus, in `crashloop` mode, the `sys.exit(1)` and restart; `kafka-relay.log`
+  is the first place to check a route-A scenario that timed out waiting for
+  a verdict (retry/backoff and `relay_dropped_total` show up there).
+- `kafka-resources.yaml` (M7b) - `kubectl get kafka,kafkanodepool,kafkatopic,kafkauser
+  -n bank -o yaml`, the full state of every Strimzi custom resource at
+  teardown time.
 - `events.txt` - the last 100 cluster events by timestamp; a good first stop
   for `ImagePullBackOff` / `CrashLoopBackOff` / scheduling failures that
   never reach the rule-evaluation stage at all.

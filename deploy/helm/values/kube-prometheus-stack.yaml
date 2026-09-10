@@ -5,9 +5,20 @@
 # `helm upgrade --install ... --version 65.5.1 -f deploy/helm/values/kube-prometheus-stack.yaml`).
 #
 # Grafana is disabled (out of scope for M6, see docs/specs/m6-kind-estate.md
-# non-requirements); Alertmanager is enabled and routes every alert to
-# route-b-forwarder, the same bank/azure/alert_forwarder Alertmanager
-# webhook Route B already accepts from an Azure Monitor action group.
+# non-requirements).
+#
+# Alertmanager routing (M7b, route A by default / route B for Kafka's own
+# alerts - see docs/DESIGN.md 4.4): everything defaults to `route-a-kafka`,
+# a webhook straight to `alerts-bridge` (produces to Kafka's `alerts.raw`,
+# consumed by `kafka-relay`, which HMAC-signs and POSTs to ingest); the four
+# alerts *about* Kafka itself - which can't reliably travel over the thing
+# they're reporting broken - take a first-match child route to
+# `route-b-forwarder`, the pre-M7 `bank/azure/alert_forwarder` webhook.
+# `scripts/render_alertmanager_values.py --no-kafka` replaces this whole
+# block with the M6 routing (everything to route B, no Kafka in the
+# picture) when `kafka.enabled=false`; both are exercised by
+# `tests/scripts/test_render_alertmanager_values.py` and rendered by
+# `task helm-check` / `ci.yml`'s `helm` job.
 #
 # Upstream values can't read this repo's own `nordwind-bank` chart values,
 # so the forwarder URL below is the placeholder `__FORWARDER_URL__`.
@@ -29,8 +40,9 @@ alertmanager:
   config:
     global:
       resolve_timeout: 5m
+    # __ROUTE_KAFKA_BLOCK_START__
     route:
-      receiver: "null"
+      receiver: route-a-kafka
       group_by: ["alertname", "service"]
       group_wait: 10s
       group_interval: 30s
@@ -40,28 +52,23 @@ alertmanager:
       # our `receivers` list below fully replaces the default one (Helm
       # only deep-merges maps, not lists), but the default `route.routes`
       # sub-route sending `alertname: Watchdog` to a `null` receiver is a
-      # map and survives the merge. With no `null` receiver left, the
-      # operator refuses to provision Alertmanager at all ("undefined
-      # receiver \"null\" used in route") and the StatefulSet never gets
-      # created - `helm upgrade --wait` still reports success because
-      # `--wait` doesn't track this operator-managed CRD's reconciliation.
-      # Clearing `routes` here removes that inherited sub-route - and the
-      # explicit child route below is the only path to the forwarder: kind
-      # has no reachable kube-scheduler / etcd / kube-proxy endpoints, so the
-      # upstream TargetDown/Watchdog alerts would otherwise flood the spine
-      # (each one costs an LLM call - the first demo shipped nine of them).
-      # Only alerts that name a bank service leave the cluster (#69).
+      # map and survives the merge unless we replace `routes` too - done
+      # below, so no stray `null` receiver needs to exist.
       routes:
         - receiver: route-b-forwarder
           matchers:
-            - service =~ "cards-authorization|fraud-scoring|open-banking-api|kafka|kafka-relay|alerts-bridge"
+            - alertname =~ "KafkaBrokerDown|KafkaRelayLag|AlertsBridgeDown|KafkaRelayDown"
           continue: false
     receivers:
-      - name: "null"
+      - name: route-a-kafka
+        webhook_configs:
+          - url: "http://nordwind-bank-alerts-bridge.bank.svc:8080/alertmanager"
+            send_resolved: true
       - name: route-b-forwarder
         webhook_configs:
           - url: "__FORWARDER_URL__"
             send_resolved: true
+    # __ROUTE_KAFKA_BLOCK_END__
   service:
     type: NodePort
     nodePort: 30093

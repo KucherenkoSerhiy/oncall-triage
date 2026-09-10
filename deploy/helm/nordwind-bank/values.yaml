@@ -18,6 +18,15 @@ forwarder:
 kafka:
   enabled: true
 
+kafkaRelay:
+  # Where kafka-relay POSTs route-A alerts (M7b). Same production ingest URL
+  # bank/azure/alert_forwarder falls back to when its own INGEST_URL app
+  # setting is unset - both routes end up at the one real ingest endpoint.
+  # `INGEST_HMAC_SECRET` is not a value: it comes from the `nordwind-ingest`
+  # Secret `task estate-up` creates from SSM (see
+  # deploy/helm/nordwind-bank/templates/kafka/kafka-relay.yaml).
+  ingestUrl: "https://api.triage.serhiykucherenko.dev/alerts"
+
 monitoring:
   # kube-prometheus-stack's Helm release name. Stamped as the `release`
   # label on ServiceMonitor/PrometheusRule objects - see README.md for why
