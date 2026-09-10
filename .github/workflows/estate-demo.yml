@@ -31,7 +31,10 @@ jobs:
   estate-demo:
     name: estate-demo - kind cluster, cards-timeouts chaos scenario
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # 25 min for the M6 steps + headroom for M7a's extra estate-up work
+    # (installing the Strimzi operator and waiting up to 10 min for the
+    # Kafka resource's Ready condition).
+    timeout-minutes: 30
     environment: demo
     steps:
       - uses: actions/checkout@v4

@@ -7,3 +7,4 @@ moto[dynamodb,sqs]>=5.2.3
 boto3-stubs[dynamodb,sqs]
 azure-functions
 pyyaml>=6
+testcontainers[kafka]>=4,<5

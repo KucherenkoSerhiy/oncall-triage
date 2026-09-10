@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from bank.aws.common import VALID_MODES
 from bank.faults import VALID_MODES as K8S_VALID_MODES
 from cli.bankops import client
+from scripts.chaos_k8s import kafka_broker_down, kafka_clear
 from services.ingest.hmac_auth import sign
 
 _COLUMNS = ("TIME", "SEV", "ESTATE", "SERVICE", "ALERT", "STATUS", "OCC", "VERDICT")
@@ -187,6 +188,24 @@ def _cmd_chaos_kubernetes(args: argparse.Namespace) -> int:
             f"error: unknown service {args.service!r}; valid services: {', '.join(K8S_VALID_MODES)}"
         )
         return 1
+
+    if args.service == "kafka":
+        if args.clear:
+            kafka_clear()
+            print("cleared fault on kafka (kubernetes)")
+            return 0
+        if not args.mode:
+            print("error: --mode or --clear is required")
+            return 1
+        if args.mode not in valid_modes:
+            print(
+                f"error: invalid mode {args.mode!r} for kafka; "
+                f"valid modes: {', '.join(valid_modes)}"
+            )
+            return 1
+        kafka_broker_down()
+        print(f"service=kafka mode={args.mode} estate=kubernetes")
+        return 0
 
     if args.clear:
         _kubectl_patch_fault(args.service, "")

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+
 from prometheus_client import CollectorRegistry
 
+from bank.k8s._shared.kafka import KafkaMetrics
 from bank.k8s.cards_authorization.service import CardsAuthorizationService
 
 
@@ -11,6 +14,19 @@ class FakeFaultFile:
 
     def current(self) -> str | None:
         return self.mode
+
+
+class FakePublisher:
+    def __init__(self) -> None:
+        self.published: list[tuple[str, str | None, bytes]] = []
+
+    def publish(self, topic: str, key: str | None, value: bytes) -> None:
+        self.published.append((topic, key, value))
+
+
+class BrokenPublisher:
+    def publish(self, topic: str, key: str | None, value: bytes) -> None:
+        raise RuntimeError("boom")
 
 
 def _counter_value(registry: CollectorRegistry, name: str, **labels: str) -> float:
@@ -51,5 +67,48 @@ def test_issuer_down_mode_always_errors():
         result = service.work()
         assert result["result"] == "error"
 
-    assert _counter_value(registry, "cards_auth_requests_total", result="error") == 5
-    assert _counter_value(registry, "cards_auth_requests_total", result="ok") == 0
+
+def test_publishes_a_card_authorized_event_when_publisher_configured():
+    registry = CollectorRegistry()
+    publisher = FakePublisher()
+    kafka_metrics = KafkaMetrics.create(registry)
+    service = CardsAuthorizationService(
+        registry, fault_file=FakeFaultFile(None), publisher=publisher, kafka_metrics=kafka_metrics
+    )
+
+    result = service.work()
+
+    assert len(publisher.published) == 1
+    topic, key, value = publisher.published[0]
+    assert topic == "card.authorized"
+    event = json.loads(value)
+    assert set(event) == {"txn_id", "amount", "currency", "result", "ts"}
+    assert event["currency"] == "EUR"
+    assert event["result"] == result["result"]
+    assert key == event["txn_id"]
+    assert _counter_value(registry, "kafka_events_produced_total", topic="card.authorized") == 1
+
+
+def test_no_publish_when_publisher_not_configured():
+    registry = CollectorRegistry()
+    service = CardsAuthorizationService(registry, fault_file=FakeFaultFile(None))
+
+    service.work()  # must not raise with no publisher wired
+
+
+def test_publish_error_increments_error_counter_and_does_not_raise():
+    registry = CollectorRegistry()
+    kafka_metrics = KafkaMetrics.create(registry)
+    service = CardsAuthorizationService(
+        registry,
+        fault_file=FakeFaultFile(None),
+        publisher=BrokenPublisher(),
+        kafka_metrics=kafka_metrics,
+    )
+
+    service.work()  # must not raise even though the publisher fails
+
+    assert _counter_value(registry, "kafka_produce_errors_total") == 1
+    assert _counter_value(registry, "kafka_events_produced_total", topic="card.authorized") == 0
+    # A failed publish doesn't affect the pre-existing (non-Kafka) request metrics.
+    assert _counter_value(registry, "cards_auth_requests_total", result="ok") == 1

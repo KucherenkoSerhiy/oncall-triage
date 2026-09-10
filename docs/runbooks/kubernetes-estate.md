@@ -69,7 +69,51 @@ are reachable with no `kubectl port-forward`:
 
 `task estate-status` prints the same firing-alert list from the terminal
 (name, service, severity, `startsAt`), plus pods in `bank`/`monitoring` and
-the `nordwind-faults` ConfigMap contents.
+the `nordwind-faults` ConfigMap contents. `task estate-status -- --kafka`
+also prints `KafkaTopic`s and per-group consumer lag (see "Kafka" below).
+
+## Kafka (M7a)
+
+`task estate-up` installs the Strimzi operator into `kafka` (watching only
+`bank`) after kube-prometheus-stack, then waits up to 10 minutes for the
+`Kafka` resource's `Ready` condition (printing the operator's log tail on
+timeout). Business events flow `cards-authorization` → `card.authorized` →
+`fraud-scoring` → `fraud.scored` → `open-banking-api`; see
+`deploy/helm/nordwind-bank/README.md`'s Kafka section for the topic/user/ACL
+table and how to tail a topic.
+
+### Lag inspection
+
+```bash
+task estate-status -- --kafka
+```
+
+prints `kubectl get kafkatopics -n bank` and, by `kubectl exec`-ing into the
+broker with the `admin` `KafkaUser`'s SCRAM credentials,
+`kafka-consumer-groups.sh --describe --all-groups` - the `LAG` column per
+`(GROUP, TOPIC, PARTITION)`. Under the `lag` fault (below) `fraud-scoring`'s
+lag on `card.authorized` climbs steadily; healthy otherwise means at or near
+0.
+
+### `broker-down` recovery
+
+`broker-down` is a chaos *action* against the platform, not a service fault
+mode: it scales the `broker` `KafkaNodePool` to 0 replicas (the separate
+`controller` pool - the KRaft metadata quorum - is left alone; Strimzi
+refuses to reconcile a cluster whose node pools are all at 0 replicas, so a
+single combined pool can't be scaled to 0 this way), so every
+producer/consumer in the estate starts failing to reach the broker while
+staying up themselves (`/healthz` unaffected).
+
+```bash
+task chaos-k8s -- kafka broker-down
+task estate-status   # broker pod Terminating/gone; KAFKA_BOOTSTRAP unreachable
+task chaos-k8s -- kafka clear   # scales back to 1 and waits for the broker pod Ready
+```
+
+`bankops chaos --estate kubernetes kafka --mode broker-down` / `--clear` do
+the same thing (`cli/bankops/commands.py` calls the same
+`scripts/chaos_k8s.py` functions).
 
 ## Chaos cookbook
 

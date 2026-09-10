@@ -6,9 +6,12 @@ vars:
   TF_ROOTS: infra/bootstrap/aws infra/bootstrap/azure infra/aws-ecr infra/aws infra/azure
   C4_DIR: docs/c4
   # kubeconform's CRD schema-location pattern for ServiceMonitor/PrometheusRule
-  # (not a Task template var - kubeconform expands it itself at runtime, so
-  # the braces are escaped to survive Task's own templating).
-  KUBECONFORM_CRD_SCHEMA: 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{"{{"}}.Group{{"}}"}}/{{"{{"}}.ResourceKind{{"}}"}}_{{"{{"}}.ResourceAPIVersion{{"}}"}}.json'
+  # and (M7a) Kafka/KafkaNodePool/KafkaTopic/KafkaUser - pinned to a commit
+  # (not `main`) so a schema landing upstream can't break CI unannounced.
+  # Not a Task template var - kubeconform expands it itself at runtime, so
+  # the braces are escaped to survive Task's own templating.
+  KUBECONFORM_CRDS_CATALOG_COMMIT: ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2
+  KUBECONFORM_CRD_SCHEMA: 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/{{.KUBECONFORM_CRDS_CATALOG_COMMIT}}/{{"{{"}}.Group{{"}}"}}/{{"{{"}}.ResourceKind{{"}}"}}_{{"{{"}}.ResourceAPIVersion{{"}}"}}.json'
   # Pinned tool/chart versions for the kind estate (M6b). Kept in sync with
   # deploy/kind/cluster.yaml (node image), deploy/helm/values/kube-prometheus-stack.yaml
   # (chart version) and .github/workflows/{ci,estate-demo}.yml (kubeconform, trivy).
@@ -16,6 +19,12 @@ vars:
   KUBE_PROMETHEUS_STACK_VERSION: 65.5.1
   KUBECONFORM_VERSION: v0.6.7
   TRIVY_VERSION: v0.74.0
+  # Strimzi Kafka operator chart (M7a): `helm repo add strimzi https://strimzi.io/charts/`.
+  # Pinned to the last version requiring the `strimzi.io/kraft` /
+  # `strimzi.io/node-pools` annotations used in deploy/helm/nordwind-bank/templates/kafka/kafka.yaml
+  # (from 0.48.0 on they're ignored no-ops); Kafka version 3.9.0 is pinned
+  # to match (deploy/helm/nordwind-bank/templates/kafka/kafka.yaml).
+  STRIMZI_VERSION: 0.45.0
   # Under the repo (not /tmp - Task's mvdan/sh shell resolves a leading
   # `/` relative to the current directory on Windows, not an OS temp
   # root), so this stays portable on the laptop and on ubuntu-latest.
@@ -91,7 +100,7 @@ tasks:
       - helm lint deploy/helm/nordwind-bank
 
   helm-check:
-    desc: helm template the nordwind-bank chart (default values and with a forwarder URL) through kubeconform -strict
+    desc: helm template the nordwind-bank chart (default values, a forwarder URL, and kafka.enabled=false) through kubeconform -strict
     cmds:
       - helm template deploy/helm/nordwind-bank | kubeconform -strict -summary -kubernetes-version 1.31.0
         -schema-location default
@@ -99,9 +108,12 @@ tasks:
       - helm template deploy/helm/nordwind-bank --set forwarder.url=https://example/x | kubeconform -strict -summary -kubernetes-version 1.31.0
         -schema-location default
         -schema-location '{{.KUBECONFORM_CRD_SCHEMA}}'
+      - helm template deploy/helm/nordwind-bank --set kafka.enabled=false | kubeconform -strict -summary -kubernetes-version 1.31.0
+        -schema-location default
+        -schema-location '{{.KUBECONFORM_CRD_SCHEMA}}'
 
   estate-up:
-    desc: Create the kind cluster if missing, install monitoring + nordwind-bank, load the service images
+    desc: Create the kind cluster if missing, install monitoring + Strimzi + nordwind-bank, load the service images
     cmds:
       - docker pull {{.KIND_NODE_IMAGE}}
       - |
@@ -109,13 +121,23 @@ tasks:
           kind create cluster --name nordwind --config deploy/kind/cluster.yaml
         fi
       - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-      - helm repo update prometheus-community
+      - helm repo add strimzi https://strimzi.io/charts/
+      - helm repo update prometheus-community strimzi
       - mkdir -p {{.ROOT_DIR}}/.tmp
       - python scripts/render_alertmanager_values.py deploy/helm/values/kube-prometheus-stack.yaml
         --forwarder-url "$FORWARDER_URL" > {{.RENDERED_ALERTMANAGER_VALUES}}
       - helm upgrade --install monitoring prometheus-community/kube-prometheus-stack
         --version {{.KUBE_PROMETHEUS_STACK_VERSION}} -n monitoring --create-namespace
         -f {{.RENDERED_ALERTMANAGER_VALUES}} --wait
+      - |
+        # strimzi-kafka-operator's watchNamespaces: [bank] value makes the chart
+        # create RoleBindings in `bank` at install time - that namespace has to
+        # exist before this install, not just before `nordwind-bank` later.
+        kubectl create namespace bank --dry-run=client -o yaml | kubectl apply -f -
+      - helm upgrade --install strimzi-kafka-operator strimzi/strimzi-kafka-operator
+        --version {{.STRIMZI_VERSION}} -n kafka --create-namespace
+        -f deploy/helm/values/strimzi.yaml --wait
+      - kubectl -n kafka wait --for=condition=Available deployment/strimzi-cluster-operator --timeout=180s
       - docker build -f bank/k8s/cards_authorization/Dockerfile -t nordwind/cards-authorization:dev .
       - docker build -f bank/k8s/fraud_scoring/Dockerfile -t nordwind/fraud-scoring:dev .
       - docker build -f bank/k8s/open_banking_api/Dockerfile -t nordwind/open-banking-api:dev .
@@ -123,6 +145,12 @@ tasks:
         nordwind/open-banking-api:dev --name nordwind
       - helm upgrade --install nordwind-bank deploy/helm/nordwind-bank -n bank --create-namespace
         --set imageTag=dev --wait --timeout 5m
+      - |
+        if ! kubectl -n bank wait --for=condition=Ready kafka/nordwind-bank --timeout=600s; then
+          echo "Kafka not Ready after 600s; strimzi-cluster-operator log tail:"
+          kubectl -n kafka logs deploy/strimzi-cluster-operator --tail=200
+          exit 1
+        fi
       - 'echo "Prometheus:   http://localhost:9090"'
       - 'echo "Alertmanager: http://localhost:9093"'
       - kubectl get pods -A
@@ -133,12 +161,12 @@ tasks:
       - kind delete cluster --name nordwind
 
   estate-status:
-    desc: Show bank/monitoring pods, the nordwind-faults ConfigMap, and firing Alertmanager alerts
+    desc: Show bank/monitoring pods, the nordwind-faults ConfigMap, firing Alertmanager alerts, and (--kafka) topics + consumer lag
     cmds:
-      - python scripts/estate_status.py
+      - python scripts/estate_status.py {{.CLI_ARGS}}
 
   chaos-k8s:
-    desc: Patch a Kubernetes bank service's fault mode (task chaos-k8s -- cards-authorization timeouts|clear)
+    desc: 'Patch a Kubernetes bank service''s fault mode (task chaos-k8s -- cards-authorization timeouts|clear) or the kafka broker (task chaos-k8s -- kafka broker-down|clear)'
     cmds:
       - python scripts/chaos_k8s.py {{.CLI_ARGS}}
 

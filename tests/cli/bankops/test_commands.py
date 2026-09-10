@@ -378,6 +378,63 @@ def test_chaos_kubernetes_rejects_unknown_service(monkeypatch):
     assert exit_code == 1
 
 
+def test_chaos_kubernetes_kafka_broker_down(monkeypatch):
+    calls = []
+    monkeypatch.setattr(commands, "kafka_broker_down", lambda: calls.append("broker-down"))
+    monkeypatch.setattr(commands, "kafka_clear", lambda: calls.append("clear"))
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service="kafka",
+            mode="broker-down",
+            minutes=5,
+            clear=False,
+            status=False,
+            estate="kubernetes",
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 0
+    assert calls == ["broker-down"]
+
+
+def test_chaos_kubernetes_kafka_clear(monkeypatch):
+    calls = []
+    monkeypatch.setattr(commands, "kafka_broker_down", lambda: calls.append("broker-down"))
+    monkeypatch.setattr(commands, "kafka_clear", lambda: calls.append("clear"))
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service="kafka", mode=None, minutes=5, clear=True, status=False, estate="kubernetes"
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 0
+    assert calls == ["clear"]
+
+
+def test_chaos_kubernetes_kafka_rejects_invalid_mode(monkeypatch):
+    monkeypatch.setattr(
+        commands, "kafka_broker_down", lambda: (_ for _ in ()).throw(AssertionError)
+    )
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service="kafka",
+            mode="not-a-mode",
+            minutes=5,
+            clear=False,
+            status=False,
+            estate="kubernetes",
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 1
+
+
 def test_chaos_status_hints_at_kubernetes(monkeypatch, capsys):
     def fake_request(method, url, headers=None, body=None):
         return json.dumps([]).encode()

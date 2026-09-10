@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+
 from prometheus_client import CollectorRegistry
 
+from bank.k8s._shared.kafka import KafkaMetrics
 from bank.k8s.fraud_scoring.service import FraudScoringService
 
 
@@ -19,6 +22,39 @@ class FakeClock:
 
     def __call__(self) -> float:
         return self.now
+
+
+class FakePublisher:
+    def __init__(self) -> None:
+        self.published: list[tuple[str, str | None, bytes]] = []
+
+    def publish(self, topic: str, key: str | None, value: bytes) -> None:
+        self.published.append((topic, key, value))
+
+
+class BrokenPublisher:
+    def publish(self, topic: str, key: str | None, value: bytes) -> None:
+        raise RuntimeError("boom")
+
+
+class FakeMessage:
+    def __init__(self, value: bytes) -> None:
+        self._value = value
+
+    def value(self) -> bytes:
+        return self._value
+
+
+class FakeConsumer:
+    def __init__(self) -> None:
+        self.committed: list[FakeMessage] = []
+
+    def commit(self, message: FakeMessage | None = None, **kwargs: object) -> None:
+        self.committed.append(message)
+
+
+def _counter_value(registry: CollectorRegistry, name: str, **labels: str) -> float:
+    return registry.get_sample_value(name, labels) or 0.0
 
 
 def test_normal_mode_scores_around_point_two():
@@ -110,3 +146,74 @@ def test_crashloop_timer_resets_when_mode_clears(monkeypatch):
     service.work()  # only 0.5s since the timer reset - should not exit yet
 
     assert exit_calls == []
+
+
+def test_handle_card_authorized_scores_and_publishes_fraud_scored_then_commits():
+    registry = CollectorRegistry()
+    fault_file = FakeFaultFile(None)
+    publisher = FakePublisher()
+    kafka_metrics = KafkaMetrics.create(registry)
+    service = FraudScoringService(
+        registry, fault_file=fault_file, publisher=publisher, kafka_metrics=kafka_metrics
+    )
+    consumer = FakeConsumer()
+    message = FakeMessage(json.dumps({"txn_id": "t-1"}).encode())
+
+    service.handle_card_authorized(consumer, message)
+
+    assert len(publisher.published) == 1
+    topic, key, value = publisher.published[0]
+    assert topic == "fraud.scored"
+    event = json.loads(value)
+    assert event["txn_id"] == "t-1"
+    assert 0.0 <= event["score"] <= 1.0
+    assert key == "t-1"
+    assert consumer.committed == [message]
+    assert registry.get_sample_value("fraud_scored_total") == 1
+    assert _counter_value(registry, "kafka_events_consumed_total", topic="card.authorized") == 1
+    assert _counter_value(registry, "kafka_events_produced_total", topic="fraud.scored") == 1
+
+
+def test_handle_card_authorized_does_not_commit_when_publish_fails():
+    registry = CollectorRegistry()
+    fault_file = FakeFaultFile(None)
+    kafka_metrics = KafkaMetrics.create(registry)
+    service = FraudScoringService(
+        registry, fault_file=fault_file, publisher=BrokenPublisher(), kafka_metrics=kafka_metrics
+    )
+    consumer = FakeConsumer()
+    message = FakeMessage(json.dumps({"txn_id": "t-1"}).encode())
+
+    service.handle_card_authorized(consumer, message)
+
+    assert consumer.committed == []
+    assert _counter_value(registry, "kafka_produce_errors_total") == 1
+
+
+def test_handle_card_authorized_commits_with_no_publisher_configured():
+    registry = CollectorRegistry()
+    fault_file = FakeFaultFile(None)
+    service = FraudScoringService(registry, fault_file=fault_file)
+    consumer = FakeConsumer()
+    message = FakeMessage(json.dumps({"txn_id": "t-1"}).encode())
+
+    service.handle_card_authorized(consumer, message)
+
+    assert consumer.committed == [message]
+
+
+def test_handle_card_authorized_respects_model_drift_mode():
+    registry = CollectorRegistry()
+    fault_file = FakeFaultFile("model-drift")
+    publisher = FakePublisher()
+    service = FraudScoringService(registry, fault_file=fault_file, publisher=publisher)
+    consumer = FakeConsumer()
+
+    scores = []
+    for i in range(200):
+        message = FakeMessage(json.dumps({"txn_id": f"t-{i}"}).encode())
+        service.handle_card_authorized(consumer, message)
+        scores.append(json.loads(publisher.published[-1][2])["score"])
+
+    mean = sum(scores) / len(scores)
+    assert mean > 0.6
