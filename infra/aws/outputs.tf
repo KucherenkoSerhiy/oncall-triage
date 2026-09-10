@@ -51,7 +51,7 @@ output "console_token_parameter" {
 
 output "dnssec_ds_record" {
   description = "DS record to publish at the parent (key tag, algorithm, digest type, digest) - also what dns_check.py compares the Cloudflare DS against."
-  value       = "${aws_route53_key_signing_key.triage.key_tag} ${aws_route53_key_signing_key.triage.signing_algorithm_type} ${aws_route53_key_signing_key.triage.digest_algorithm_type} ${aws_route53_key_signing_key.triage.digest_value}"
+  value       = var.enable_dnssec ? "${aws_route53_key_signing_key.triage[0].key_tag} ${aws_route53_key_signing_key.triage[0].signing_algorithm_type} ${aws_route53_key_signing_key.triage[0].digest_algorithm_type} ${aws_route53_key_signing_key.triage[0].digest_value}" : "DNSSEC not enabled (enable_dnssec=false)"
 }
 
 output "dns_query_log_group" {

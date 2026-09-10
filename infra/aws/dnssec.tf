@@ -1,10 +1,14 @@
-# DNSSEC for the delegated zone, plus the DS record that publishes the
+# DNSSEC for the delegated zone (behind var.enable_dnssec - see variables.tf
+# for why it is off until the deploy role can manage KMS keys), plus the DS
+# record that publishes the
 # chain of trust at the parent (Cloudflare), plus Route 53 query logging.
 # The signing key must live in us-east-1 (a Route 53 requirement); the
 # provider alias is declared in console.tf (also used for the CloudFront
 # certificate).
 
 resource "aws_kms_key" "dnssec" {
+  count = var.enable_dnssec ? 1 : 0
+
   provider = aws.us_east_1
 
   description              = "DNSSEC signing key for ${aws_route53_zone.triage.name}"
@@ -53,20 +57,26 @@ resource "aws_kms_key" "dnssec" {
 }
 
 resource "aws_kms_alias" "dnssec" {
+  count = var.enable_dnssec ? 1 : 0
+
   provider = aws.us_east_1
 
   name          = "alias/${local.name_prefix}-dnssec"
-  target_key_id = aws_kms_key.dnssec.key_id
+  target_key_id = aws_kms_key.dnssec[0].key_id
 }
 
 resource "aws_route53_key_signing_key" "triage" {
+  count = var.enable_dnssec ? 1 : 0
+
   hosted_zone_id             = aws_route53_zone.triage.id
-  key_management_service_arn = aws_kms_key.dnssec.arn
+  key_management_service_arn = aws_kms_key.dnssec[0].arn
   name                       = "${local.name_prefix}-ksk"
   status                     = "ACTIVE"
 }
 
 resource "aws_route53_hosted_zone_dnssec" "triage" {
+  count = var.enable_dnssec ? 1 : 0
+
   hosted_zone_id = aws_route53_zone.triage.id
 
   depends_on = [aws_route53_key_signing_key.triage]
@@ -83,16 +93,18 @@ resource "aws_route53_hosted_zone_dnssec" "triage" {
 #   resolution for the whole zone), and it falls out of this one
 #   `depends_on` with no extra ordering resource needed.
 resource "cloudflare_dns_record" "ds" {
+  count = var.enable_dnssec ? 1 : 0
+
   zone_id = local.parent_zone_id
   # Fully qualified, matching the NS delegation records in dns_delegation.tf.
   name = var.domain
   type = "DS"
   ttl  = 3600
   data = {
-    key_tag     = aws_route53_key_signing_key.triage.key_tag
-    algorithm   = aws_route53_key_signing_key.triage.signing_algorithm_type
-    digest_type = aws_route53_key_signing_key.triage.digest_algorithm_type
-    digest      = aws_route53_key_signing_key.triage.digest_value
+    key_tag     = aws_route53_key_signing_key.triage[0].key_tag
+    algorithm   = aws_route53_key_signing_key.triage[0].signing_algorithm_type
+    digest_type = aws_route53_key_signing_key.triage[0].digest_algorithm_type
+    digest      = aws_route53_key_signing_key.triage[0].digest_value
   }
   comment = "DS for triage.* DNSSEC chain of trust (managed by Terraform, oncall-triage repo)"
 
@@ -126,12 +138,11 @@ data "aws_iam_policy_document" "dns_queries" {
 resource "aws_cloudwatch_log_resource_policy" "dns_queries" {
   provider = aws.us_east_1
 
+  # `policy_name` and `resource_arn` are mutually exclusive in the provider:
+  # this is an account-level resource policy (one of the 10 the account
+  # allows) whose document is scoped to this log group's ARN.
   policy_name     = "${local.name_prefix}-dns-queries"
   policy_document = data.aws_iam_policy_document.dns_queries.json
-  # Scopes the policy to this one log group instead of the account-wide
-  # default, so it doesn't count against the 10-resource-policy account
-  # limit shared with every other CloudWatch Logs subscriber.
-  resource_arn = aws_cloudwatch_log_group.dns_queries.arn
 }
 
 resource "aws_route53_query_log" "triage" {

@@ -95,6 +95,13 @@ aws ssm get-parameter --with-decryption --name /nordwind-triage/demo/console-tok
 
 ## DNSSEC
 
+> **Enablement.** DNSSEC is created only with `-var=enable_dnssec=true`.
+> The GitHub deploy role could not create the KMS key on the first apply
+> (`kms:TagResource` denied - run 34434809542); the bootstrap policy now
+> lists the KMS key-management actions, and applying that bootstrap change
+> is a human step (temporary IAM user, see Bootstrap). Query logging is
+> live regardless of the flag. Tracked in #81.
+
 The delegated zone (`triage.serhiykucherenko.dev`) is DNSSEC-signed
 end-to-end within Route 53:
 
