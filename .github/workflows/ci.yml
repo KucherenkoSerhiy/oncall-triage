@@ -27,6 +27,7 @@ jobs:
       - run: ruff format --check .
       - run: mypy
       - run: pytest
+      - run: python scripts/check_links.py
 
   terraform:
     name: terraform - fmt, validate, tflint (${{ matrix.root }})

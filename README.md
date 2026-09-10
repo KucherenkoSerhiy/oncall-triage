@@ -13,8 +13,10 @@ Kubernetes estate with Prometheus, Alertmanager and Kafka — all of it
 Terraform and Helm, deployed only by GitHub Actions over OIDC, with C4
 diagrams that CI keeps honest. Cloud budget: under $10 a month.
 
-> **Status:** the alert spine is live at [triage.serhiykucherenko.dev](https://triage.serhiykucherenko.dev)
-> (M2); the Claude-backed triage worker is in review (M3) — see the roadmap.
+> **Status:** live at [triage.serhiykucherenko.dev](https://triage.serhiykucherenko.dev)
+> — M0-M9 shipped, three estates feeding one triage brain, hardened with
+> self-observability, DLQ replay, DNSSEC and a recorded rollback drill. See
+> the [5-minute demo](#5-minute-demo) and the roadmap below.
 
 ## What it does
 
@@ -70,20 +72,42 @@ Details, prompts, the three sequence diagrams and a recorded demo
 transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.md),
 [`DEMO.md`](DEMO.md).
 
+## 5-minute demo
+
+Three unattended probes, each already recorded for real at least once - the
+run linked is that recording, not a promise:
+
+1. **AWS, from the console.** Open the console, then
+   `bankops chaos payments --mode pool --minutes 5`: a real CloudWatch
+   alarm (`PoolExhausted`) reaches the spine and comes back a known-issue
+   verdict in **~3-4 minutes**, unattended
+   ([run 34414316312](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34414316312), [#18](https://github.com/KucherenkoSerhiy/oncall-triage/issues/18)).
+2. **Kubernetes, the Kafka story.** `gh workflow run estate-demo.yml`
+   (or the Sunday 06:00 UTC schedule): three chaos scenarios in one
+   ~16-minute job - `CardsAuthHighLatency` and `KafkaConsumerLag` verdicts
+   travel **over Kafka** (route A), then `KafkaBrokerDown` travels route B
+   instead - **one verdict arrived over Kafka; the one about Kafka did not**
+   ([run 34437560310](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34437560310), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)).
+3. **Azure, the slow path.** `gh workflow run deploy.yml -f root=azure -f
+   chaos_probe=notifications-429`: Azure Monitor's slower evaluation
+   cadence (metric alerts at ~1 min, scheduled query rules at up to 5 min)
+   means **~7 minutes** to a `page` verdict, budgeted to 12
+   ([run 34427522005](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34427522005), [#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20)).
+
 ## Roadmap
 
-| M | Milestone | Status |
-|---|---|---|
-| M0 | Repo, CI, design, ADRs, C4 model | ✅ |
-| M1 | Pipelines + bootstrap: Terraform roots, OIDC to both clouds, budgets, plan-on-PR / approve / apply | ✅ (first apply 2026-09-09) |
-| M2 | Alert spine without LLM: ingest → DynamoDB → SQS, console + API, `bankops fire`, custom domain | ✅ live at [triage.serhiykucherenko.dev](https://triage.serhiykucherenko.dev) (2026-09-09) |
-| M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | ✅ live (2026-09-09): real Claude verdicts via the image-based worker, smoke asserts a model verdict + a known-issue short-circuit |
-| M4 | AWS estate: three services + CloudWatch alarms + chaos | ✅ live (2026-09-10): `bankops chaos payments --mode pool` -> CloudWatch alarm -> verdict `known, ack` in ~4 min, unattended ([#18](https://github.com/KucherenkoSerhiy/oncall-triage/issues/18)) |
-| M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ✅ live (2026-09-10, swedencentral): `bankops chaos customer-notifications --mode provider-429` -> Azure Monitor rule -> forwarder -> verdict `page` in ~7 min ([#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20)) |
-| M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ✅ live (2026-09-10): `estate-demo.yml` builds a kind cluster on a GitHub runner, faults cards-authorization, and the Prometheus alert reaches a verdict `page` through route B in one 20-min job ([#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
-| M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | ✅ live (2026-09-10): the three-scenario `estate-demo.yml` run - `CardsAuthHighLatency` and `KafkaConsumerLag` verdicts arrived **over Kafka** (route A), `KafkaBrokerDown` took route B - in one 16-min job ([#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)) |
-| M8 | C4 drift check against Terraform tags and Helm labels | ✅ `scripts/c4_drift.py` in `ci.yml`'s `c4` job ([#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25)) |
-| M9 | Hardening: self-observability + SLO, runbooks, rollback drill | 🔨 M9a self-observability done: dashboard, 5 `ops` alarms, `docs/slo.md` + `slo-reporter`, `CapReached` ([#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)); known-issues export, DNSSEC, OIDC subjects, runbooks and the rollback drill remain ([#27](https://github.com/KucherenkoSerhiy/oncall-triage/issues/27)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30)); M9c: query logging live, DNSSEC signing merged behind a flag until the bootstrap grants KMS rights ([#28](https://github.com/KucherenkoSerhiy/oncall-triage/issues/28), [#81](https://github.com/KucherenkoSerhiy/oncall-triage/issues/81)); M9b: weekly known-issues export + `bankops replay-dlq` ([#27](https://github.com/KucherenkoSerhiy/oncall-triage/issues/27)) |
+| M | Milestone | Status | Live probe |
+|---|---|---|---|
+| M0 | Repo, CI, design, ADRs, C4 model | ✅ | — (no live system yet) |
+| M1 | Pipelines + bootstrap: Terraform roots, OIDC to both clouds, budgets, plan-on-PR / approve / apply | ✅ | a PR shows a plan comment; merging applies after approval (first apply 2026-09-09) |
+| M2 | Alert spine without LLM: ingest → DynamoDB → SQS, console + API, `bankops fire`, custom domain | ✅ live at [triage.serhiykucherenko.dev](https://triage.serhiykucherenko.dev) | `bankops fire --service payments` shows on the console in < 5s (2026-09-09) |
+| M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | ✅ live | fire known → FORMAT A; fire new → FORMAT B; teach → re-fire → FORMAT A; roll back to previous SHA and re-fire (2026-09-09) |
+| M4 | AWS estate: three services + CloudWatch alarms + chaos | ✅ live | `bankops chaos payments --mode pool` → verdict `known, ack` in ~4 min, unattended ([run 34414316312](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34414316312), [#18](https://github.com/KucherenkoSerhiy/oncall-triage/issues/18)) |
+| M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ✅ live (swedencentral) | `bankops chaos customer-notifications --mode provider-429` → forwarder → verdict `page` in ~7 min ([run 34427522005](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34427522005), [#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20)) |
+| M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ✅ live | `estate-demo.yml`: cards-authorization faulted, verdict `page` via route B in a 20-min job ([run 34427929878](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34427929878), [#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
+| M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | ✅ live | three-scenario `estate-demo.yml` run - Kafka-routed and route-B verdicts side by side - in one 16-min job ([run 34437560310](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34437560310), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)) |
+| M8 | C4 drift check against Terraform tags and Helm labels | ✅ | `scripts/c4_drift.py` green in `ci.yml`'s `c4` job on every PR ([#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25)) |
+| M9 | Hardening: self-observability + SLO, DLQ replay, known-issues export, DNSSEC, OIDC subjects, runbooks, rollback drill | ✅ M9a-e merged | dashboard + 5 `ops` alarms + `docs/slo.md` ([#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)); weekly export + `bankops replay-dlq` ([#27](https://github.com/KucherenkoSerhiy/oncall-triage/issues/27)); DNS query logging live, DNSSEC signing gated behind `enable_dnssec` until bootstrap grants KMS rights ([#28](https://github.com/KucherenkoSerhiy/oncall-triage/issues/28), [#81](https://github.com/KucherenkoSerhiy/oncall-triage/issues/81)); environment-scoped OIDC subjects for PR plans ([#29](https://github.com/KucherenkoSerhiy/oncall-triage/issues/29)); runbooks + a real, recorded rollback drill ([#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30), [run 34437783068](https://github.com/KucherenkoSerhiy/oncall-triage/actions/runs/34437783068)) |
 
 Every milestone has an offline gate CI runs and a live probe recorded in
 its pull request — the definition of done is in the
@@ -104,7 +128,9 @@ and `docs/runbooks/kubernetes-estate.md`).
 ## What a reviewer should look at
 
 - **Tests**: `task test` (ruff, mypy, pytest) — moto-backed unit tests for
-  every Lambda; no live AWS/Azure call in the suite.
+  every Lambda; no live AWS/Azure call in the suite. `pytest tests/contract
+  -m contract` (`ci.yml`'s `contract` job) runs the Kafka producer/consumer
+  contract tests against a real `testcontainers` Redpanda broker.
 - **Terraform gates**: `task tf:validate`, `task tf:lint`, `task tf:scan` —
   fmt, validate, tflint and checkov on every root; every policy exception
   lives in [`.checkov.yaml`](.checkov.yaml) with a reason.
@@ -119,8 +145,38 @@ and `docs/runbooks/kubernetes-estate.md`).
   Terraform tag or a `nordwind.dev/c4-container` Helm label — see
   [`docs/c4/README.md`](docs/c4/README.md) and
   [ADR 0016](docs/adr/0016-c4-drift-as-a-merge-gate.md).
+- **Runbooks**: [`docs/runbooks/`](docs/runbooks/) — `triage-spine.md`
+  (symptom-first: what you'd see, the exact `diagnose.yml` invocation,
+  likely causes each citing the incident it came from, fix, verify),
+  `deploy-and-rollback.md` (the pipeline plus a real, recorded rollback
+  drill), `secrets-rotation.md` (five secrets, one section each, a real
+  console-token rotation), `cost.md`, and `kubernetes-estate.md`. Every
+  runbook section cites the issue that motivated it — see
+  [ADR 0017](docs/adr/0017-runbooks-derived-from-incidents.md).
+- **Issues-per-slice tracking**: [GitHub milestones](https://github.com/KucherenkoSerhiy/oncall-triage/milestones)
+  and one issue per pull-request-sized slice, linked from the roadmap table
+  above and every runbook citation.
+- **Cost**: [`docs/runbooks/cost.md`](docs/runbooks/cost.md) — the
+  dollar-by-dollar table with what's actually live today, the two budgets,
+  what to destroy first if one fires.
+- **Architecture pictures**: [`docs/c4/generated/README.md`](docs/c4/generated/README.md) —
+  system context, containers, one view per bank estate, worker components,
+  both dynamic routes, and deployment (`demo` and `kind`), all generated
+  from [`docs/c4/workspace.dsl`](docs/c4/workspace.dsl) and kept honest by
+  the drift check above.
 
-(Runbooks land in a later M9 slice — see the roadmap.)
+## Cost
+
+| Line | $/month, live today |
+|---|---|
+| Cloud (AWS + Azure), everything above | ≈ 0.80-1.00 |
+| KMS DNSSEC key, once `enable_dnssec=true` | +≈ 1.00 |
+| Anthropic API (outside the two cloud budgets) | ≈ 2.50 |
+| **Two budget guardrails** | AWS $8/month, Azure $2/month, one e-mail |
+
+Full line-by-line breakdown, what's actually deployed vs. still gated, and
+what to destroy first if a budget alarm fires:
+[`docs/runbooks/cost.md`](docs/runbooks/cost.md).
 
 ## Repository map
 
@@ -128,9 +184,9 @@ and `docs/runbooks/kubernetes-estate.md`).
 oncall_triage/     the ADK agents and tools (phase 1, live-verified)
 tests/             wiring + store tests (no API key needed)
 infra/             Terraform: bootstrap (once, by hand) and the CI-applied roots — see infra/README.md
-docs/              DESIGN.md · adr/ · c4/ (Structurizr DSL + generated Mermaid) · agent.md
-.github/           ci.yml · deploy.yml · c4.yml · PR template · dependabot
-Taskfile.yml       task test | lint | tf:validate | tf:lint | tf:scan | c4 | c4-drift | agent
+docs/              DESIGN.md · adr/ · c4/ (Structurizr DSL + generated Mermaid) · runbooks/ · agent.md
+.github/           ci.yml · deploy.yml · diagnose.yml · c4.yml · PR template · dependabot
+Taskfile.yml       task test | lint | tf:validate | tf:lint | tf:scan | c4 | c4-drift | docs-check | agent
 ```
 
 ## Working on it
@@ -141,6 +197,7 @@ task test         # ruff, mypy, pytest — what ci.yml runs
 task tf:validate  # fmt, init (no backend), validate every Terraform root
 task c4           # regenerate diagrams from the model (Docker)
 task c4-drift     # check the model against Terraform tags and Helm labels
+task docs-check   # fail on a broken relative link or an orphaned C4 view
 ```
 
 Conventions: trunk-based, pull requests only, squash-merge, conventional
