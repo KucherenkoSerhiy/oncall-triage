@@ -10,12 +10,12 @@ graph LR
     style 3 fill:#8fa1b0,stroke:#64707b,color:#ffffff
     4["<div style='font-weight: bold'>bankops CLI</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>fire, chaos, teach, tail,<br />estate up|down</div>"]
     style 4 fill:#5b6b7a,stroke:#3f4a55,color:#ffffff
-    22["<div style='font-weight: bold'>Nordwind serverless estate (AWS)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Three bank services on Lambda<br />with CloudWatch alarms.</div>"]
-    style 22 fill:#1c2530,stroke:#131921,color:#ffffff
-    29["<div style='font-weight: bold'>Nordwind serverless estate (Azure)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>One bank service on Azure<br />Functions, Azure Monitor<br />alerts, and the always-on<br />alert forwarder.</div>"]
-    style 29 fill:#1c2530,stroke:#131921,color:#ffffff
-    34["<div style='font-weight: bold'>Nordwind Kubernetes estate (kind)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Three bank services plus a<br />Kafka backbone on Kubernetes,<br />with Prometheus and<br />Alertmanager routing alerts<br />over Kafka (route A) or<br />straight to the forwarder<br />(route B, Kafka's own<br />alerts). Runs in kind on a<br />laptop or a GitHub Actions<br />runner.</div>"]
-    style 34 fill:#1c2530,stroke:#131921,color:#ffffff
+    24["<div style='font-weight: bold'>Nordwind serverless estate (AWS)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Three bank services on Lambda<br />with CloudWatch alarms.</div>"]
+    style 24 fill:#1c2530,stroke:#131921,color:#ffffff
+    31["<div style='font-weight: bold'>Nordwind serverless estate (Azure)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>One bank service on Azure<br />Functions, Azure Monitor<br />alerts, and the always-on<br />alert forwarder.</div>"]
+    style 31 fill:#1c2530,stroke:#131921,color:#ffffff
+    36["<div style='font-weight: bold'>Nordwind Kubernetes estate (kind)</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Three bank services plus a<br />Kafka backbone on Kubernetes,<br />with Prometheus and<br />Alertmanager routing alerts<br />over Kafka (route A) or<br />straight to the forwarder<br />(route B, Kafka's own<br />alerts). Runs in kind on a<br />laptop or a GitHub Actions<br />runner.</div>"]
+    style 36 fill:#1c2530,stroke:#131921,color:#ffffff
 
     subgraph 5 ["Alert Triage"]
       style 5 fill:#ffffff,stroke:#131921,color:#131921
@@ -34,6 +34,10 @@ graph LR
       style 20 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       21["<div style='font-weight: bold'>slo-reporter</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>Daily (00:15 UTC): reads<br />yesterday's triaged alerts<br />and verdicts, computes<br />latency p95 and SLO<br />attainment.</div>"]
       style 21 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      22[("<div style='font-weight: bold'>known-issues bucket</div><div style='font-size: 70%; margin-top: 0px'>[Container: S3]</div><div style='font-size: 80%; margin-top:10px'>Weekly JSON export of taught<br />known issues, so the memory<br />survives a table wipe;<br />expires after 30 days.</div>")]
+      style 22 fill:#14b8a6,stroke:#0e8074,color:#0e1419
+      23["<div style='font-weight: bold'>known-issues-export</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>Weekly (Monday 00:30 UTC):<br />scans the known-issues table<br />and writes a dated JSON<br />export to the bucket.</div>"]
+      style 23 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       6["<div style='font-weight: bold'>ingest</div><div style='font-size: 70%; margin-top: 0px'>[Container: AWS Lambda (Python)]</div><div style='font-size: 80%; margin-top:10px'>HMAC-verifies webhooks,<br />normalises to the canonical<br />alert, scrubs PII, dedups by<br />fingerprint, enqueues.</div>"]
       style 6 fill:#14b8a6,stroke:#0e8074,color:#0e1419
       7["<div style='font-weight: bold'>alerts queue</div><div style='font-size: 70%; margin-top: 0px'>[Container: SQS + DLQ]</div><div style='font-size: 80%; margin-top:10px'>Decouples ingestion from LLM<br />latency; dead-letter queue<br />for poison alerts.</div>"]
@@ -42,7 +46,7 @@ graph LR
       style 8 fill:#14b8a6,stroke:#0e8074,color:#0e1419
     end
 
-    34-. "<div>route B (Kafka's own alerts)</div><div style='font-size: 70%'>[HTTPS]</div>" .->29
+    36-. "<div>route B (Kafka's own alerts)</div><div style='font-size: 70%'>[HTTPS]</div>" .->31
     6-. "<div>put alert</div><div style='font-size: 70%'></div>" .->15
     6-. "<div>enqueue alert id</div><div style='font-size: 70%'></div>" .->7
     7-. "<div>triggers</div><div style='font-size: 70%'></div>" .->8
@@ -54,19 +58,21 @@ graph LR
     16-. "<div>query / put</div><div style='font-size: 70%'></div>" .->15
     21-. "<div>reads yesterday</div><div style='font-size: 70%'></div>" .->15
     21-. "<div>custom metrics</div><div style='font-size: 70%'></div>" .->19
+    23-. "<div>scans known issues</div><div style='font-size: 70%'></div>" .->15
+    23-. "<div>put known-issues-<date>.json</div><div style='font-size: 70%'></div>" .->22
     6-. "<div>alarm state change<br />(IngestErrorRatio)</div><div style='font-size: 70%'></div>" .->20
     8-. "<div>alarm state change<br />(WorkerErrors,<br />WorkerDurationP95,<br />CapReached)</div><div style='font-size: 70%'></div>" .->20
     7-. "<div>alarm state change<br />(AlertsDlqDepth)</div><div style='font-size: 70%'></div>" .->20
     20-. "<div>e-mail notification</div><div style='font-size: 70%'></div>" .->1
     1-. "<div>reads verdicts, teaches known<br />issues</div><div style='font-size: 70%'>[HTTPS]</div>" .->17
     4-. "<div>fire: synthetic alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
-    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[Lambda invoke]</div>" .->22
-    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->29
-    4-. "<div>chaos: patch ConfigMap</div><div style='font-size: 70%'>[kubectl]</div>" .->34
-    22-. "<div>notification</div><div style='font-size: 70%'>[SNS subscription]</div>" .->6
-    16-. "<div>GET/POST/DELETE chaos</div><div style='font-size: 70%'></div>" .->22
-    29-. "<div>GET /chaos (bearer)</div><div style='font-size: 70%'>[HTTPS]</div>" .->16
-    29-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
-    34-. "<div>HTTPS + HMAC (route A)</div><div style='font-size: 70%'></div>" .->6
+    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[Lambda invoke]</div>" .->24
+    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->31
+    4-. "<div>chaos: patch ConfigMap</div><div style='font-size: 70%'>[kubectl]</div>" .->36
+    24-. "<div>notification</div><div style='font-size: 70%'>[SNS subscription]</div>" .->6
+    16-. "<div>GET/POST/DELETE chaos</div><div style='font-size: 70%'></div>" .->24
+    31-. "<div>GET /chaos (bearer)</div><div style='font-size: 70%'>[HTTPS]</div>" .->16
+    31-. "<div>canonical alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->6
+    36-. "<div>HTTPS + HMAC (route A)</div><div style='font-size: 70%'></div>" .->6
 
   end

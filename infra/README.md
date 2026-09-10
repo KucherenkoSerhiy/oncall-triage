@@ -157,6 +157,67 @@ over the always-free 10, at ~$0.10/month; every custom metric (4
 `Nordwind/Bank` + 4 `Nordwind/Triage` = 8) still fits the free 10. See
 `docs/DESIGN.md` section 9 ("Cost model").
 
+## Backups (M9b)
+
+`backups.tf` gives the taught known-issues memory a way to survive a table
+wipe without paying for DynamoDB point-in-time recovery (PITR is the
+production answer, and stays undone here - see "Non-requirements" in
+`docs/specs/m9b-known-issues-export-and-dlq.md`): a weekly Lambda,
+`known-issues-export` (`bank.ops.known_issues_export.handler`, own IAM role,
+128 MB, 60 s, EventBridge `cron(30 0 ? * MON *)` - every Monday at 00:30
+UTC), scans the known-issues table and writes
+`known-issues-<YYYY-MM-DD>.json` (`{"exported_at", "count", "items"}`,
+sorted by service then issue_id) to a private S3 bucket
+(`${local.name_prefix}-known-issues-<account id>`, SSE-S3, public access
+blocked, no versioning - these are disposable weekly snapshots, not a served
+site) with a 30-day expiration lifecycle rule. Its role can `dynamodb:Scan`
+the known-issues table and `s3:PutObject` only on
+`known-issues-*.json` keys in that one bucket.
+
+Restore with `bankops known-issues import <file.json>` (`--dry-run` to
+preview first): it fetches the current known issues, re-teaches every item
+in the file through `POST /known-issues`, and skips anything whose
+`service` + `pattern` already exists - so it's also safe to run against a
+table that was never actually wiped, to catch up a second environment.
+
+```bash
+aws s3 cp s3://$(terraform -chdir=infra/aws output -raw known_issues_bucket)/known-issues-2026-09-08.json .
+python -m cli.bankops known-issues import known-issues-2026-09-08.json --dry-run
+python -m cli.bankops known-issues import known-issues-2026-09-08.json
+```
+
+## Poison messages (M9b)
+
+The `ops-AlertsDlqDepth` alarm (`observability.tf`, M9a) fires the moment a
+single alert lands on the alerts DLQ - after 3 failed worker attempts
+(`messaging.tf`'s `maxReceiveCount`), something about that alert is
+consistently breaking the worker, and it will sit there, untried, until an
+operator intervenes. `bankops replay-dlq [--max 10] [--yes]` is that
+intervention: it moves up to `--max` messages (receive with a 10-message
+cap and a 30 s visibility timeout, send to the alerts queue preserving the
+body, then delete from the DLQ) back onto the alerts queue for the worker
+to retry, printing the `alert_id` it parses from each message body. Without
+`--yes` it only prints what it would move - the safe default for a command
+that talks straight to SQS.
+
+`replay-dlq` needs **AWS credentials directly** (`--help` says so), not
+just the console bearer token the rest of `bankops` uses - it never goes
+through the console API. Queue URLs come from `BANKOPS_ALERTS_QUEUE_URL` /
+`BANKOPS_ALERTS_DLQ_URL` (or `--alerts-queue-url` / `--alerts-dlq-url`),
+read from Terraform's `alerts_queue_url` / `alerts_dlq_url` outputs:
+
+```bash
+export BANKOPS_ALERTS_QUEUE_URL=$(terraform -chdir=infra/aws output -raw alerts_queue_url)
+export BANKOPS_ALERTS_DLQ_URL=$(terraform -chdir=infra/aws output -raw alerts_dlq_url)
+python -m cli.bankops replay-dlq            # prints the plan, moves nothing
+python -m cli.bankops replay-dlq --yes
+```
+
+`.github/workflows/diagnose.yml`'s `replay_dlq_max` dispatch input (default
+`0`, meaning "don't") runs the same command with the deploy role when set
+above zero - the incident-without-a-laptop path for a poison message caught
+by the alarm above.
+
 ## What `infra/azure` deploys
 
 The Azure half of the bank estate (M5): one Function app pretending to be

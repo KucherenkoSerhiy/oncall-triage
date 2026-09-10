@@ -39,6 +39,11 @@ output "alerts_queue_url" {
   value       = aws_sqs_queue.alerts.id
 }
 
+output "alerts_dlq_url" {
+  description = "SQS queue URL for the alerts dead-letter queue (bankops replay-dlq)."
+  value       = aws_sqs_queue.alerts_dlq.id
+}
+
 output "hmac_secret_parameter" {
   description = "SSM parameter name holding the ingest webhook HMAC secret (read with --with-decryption)."
   value       = aws_ssm_parameter.ingest_hmac_secret.name

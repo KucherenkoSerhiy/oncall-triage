@@ -22,5 +22,8 @@ locals {
     ops         = { c4_container = "ops" }
     sloReporter = { c4_container = "sloReporter" }
     dashboard   = { c4_container = "dashboard" }
+
+    knownIssuesBucket = { c4_container = "knownIssuesBucket" }
+    knownIssuesExport = { c4_container = "knownIssuesExport" }
   }
 }

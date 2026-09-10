@@ -1,4 +1,4 @@
-"""bankops subcommands: fire, tail, teach, known."""
+"""bankops subcommands: fire, tail, teach, known, known-issues, replay-dlq."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from bank.aws.common import VALID_MODES
 from bank.faults import VALID_MODES as K8S_VALID_MODES
@@ -27,6 +28,8 @@ class Config:
     api: str
     hmac_secret: str
     token: str
+    alerts_queue_url: str = ""
+    alerts_dlq_url: str = ""
 
 
 def _now_iso() -> str:
@@ -144,6 +147,93 @@ def cmd_known(args: argparse.Namespace, config: Config) -> int:
     body = client.request("GET", url, headers=_auth_headers(config))
     for issue in json.loads(body):
         print(f"{issue['service']:<20}{issue['pattern']:<40}{issue['explanation']}")
+    return 0
+
+
+def _existing_known_issues(config: Config) -> set[tuple[str, str]]:
+    body = client.request("GET", f"{config.api}/known-issues", headers=_auth_headers(config))
+    return {(issue["service"], issue["pattern"]) for issue in json.loads(body)}
+
+
+def cmd_known_issues_import(args: argparse.Namespace, config: Config) -> int:
+    with open(args.file, encoding="utf-8") as f:
+        export = json.load(f)
+
+    existing = _existing_known_issues(config)
+    headers = {"Content-Type": "application/json", **_auth_headers(config)}
+
+    imported = skipped = failed = 0
+    for item in export.get("items", []):
+        service, pattern = item["service"], item["pattern"]
+        if (service, pattern) in existing:
+            skipped += 1
+            print(f"skip service={service} pattern={pattern!r} (already known)")
+            continue
+
+        if args.dry_run:
+            imported += 1
+            print(f"would import service={service} pattern={pattern!r}")
+            continue
+
+        body = json.dumps(
+            {"service": service, "pattern": pattern, "explanation": item.get("explanation", "")}
+        ).encode()
+        try:
+            client.request("POST", f"{config.api}/known-issues", headers=headers, body=body)
+        except client.BankopsError as exc:
+            failed += 1
+            print(f"failed service={service} pattern={pattern!r}: {exc.body}")
+            continue
+
+        imported += 1
+        print(f"imported service={service} pattern={pattern!r}")
+
+    print(f"imported={imported} skipped={skipped} failed={failed}")
+    return 1 if failed else 0
+
+
+def _sqs_client() -> Any:
+    import boto3
+
+    return boto3.client("sqs")
+
+
+def _extract_alert_id(body: str) -> str | None:
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    return parsed.get("alert_id") if isinstance(parsed, dict) else None
+
+
+def cmd_replay_dlq(args: argparse.Namespace, config: Config) -> int:
+    sqs = _sqs_client()
+    max_messages = min(args.max, 10)
+
+    response = sqs.receive_message(
+        QueueUrl=config.alerts_dlq_url,
+        MaxNumberOfMessages=max_messages,
+        VisibilityTimeout=30,
+    )
+    messages = response.get("Messages", [])
+    if not messages:
+        print("no messages on the alerts DLQ")
+        return 0
+
+    verb = "moving" if args.yes else "would move"
+    for message in messages:
+        alert_id = _extract_alert_id(message["Body"]) or "<unknown>"
+        print(f"{verb} alert_id={alert_id}")
+
+    if not args.yes:
+        print(f"refusing to move {len(messages)} message(s) without --yes")
+        return 0
+
+    for message in messages:
+        sqs.send_message(QueueUrl=config.alerts_queue_url, MessageBody=message["Body"])
+        sqs.delete_message(QueueUrl=config.alerts_dlq_url, ReceiptHandle=message["ReceiptHandle"])
+
+    print(f"moved {len(messages)} message(s) from the DLQ back to the alerts queue")
     return 0
 
 
