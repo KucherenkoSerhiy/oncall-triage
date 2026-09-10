@@ -112,7 +112,7 @@ tasks:
       - helm repo update prometheus-community
       - mkdir -p {{.ROOT_DIR}}/.tmp
       - python scripts/render_alertmanager_values.py deploy/helm/values/kube-prometheus-stack.yaml
-        --forwarder-url "$FORWARDER_URL" > {{.RENDERED_ALERTMANAGER_VALUES}}
+        --forwarder-url "$FORWARDER_URL" --cluster-label "${DEMO_RUN_ID:-kind-local}" > {{.RENDERED_ALERTMANAGER_VALUES}}
       - helm upgrade --install monitoring prometheus-community/kube-prometheus-stack
         --version {{.KUBE_PROMETHEUS_STACK_VERSION}} -n monitoring --create-namespace
         -f {{.RENDERED_ALERTMANAGER_VALUES}} --wait

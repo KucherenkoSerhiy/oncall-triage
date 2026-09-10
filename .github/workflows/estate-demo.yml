@@ -80,6 +80,8 @@ jobs:
       - name: Create the kind cluster, install monitoring + nordwind-bank
         env:
           FORWARDER_URL: ${{ secrets.FORWARDER_URL }}
+          # Unique `cluster` external label per run - see #71.
+          DEMO_RUN_ID: kind-gha-${{ github.run_id }}
         run: task estate-up
 
       - name: AWS credentials (OIDC) - read SMOKE_TOKEN from SSM, same as deploy.yml's smoke job
