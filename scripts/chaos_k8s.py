@@ -1,5 +1,5 @@
-"""Patch a fault mode into the `nordwind-faults` ConfigMap, or (kafka) scale
-the Strimzi `KafkaNodePool` (stdlib only).
+"""Patch a fault mode into the `nordwind-faults` ConfigMap, or (kafka) take
+the Strimzi broker down and bring it back (stdlib only).
 
     python scripts/chaos_k8s.py cards-authorization timeouts
     python scripts/chaos_k8s.py cards-authorization clear
@@ -11,13 +11,17 @@ table `bankops chaos --estate kubernetes` validates against - before shelling
 out to `kubectl`. Run by `task chaos-k8s -- <service> <mode|clear>`.
 
 `kafka` isn't a service with a `nordwind-faults` key: its single mode,
-`broker-down`, scales the `broker` `KafkaNodePool` to 0 replicas instead
-(the M7a chaos action, not a service fault mode); `clear` scales it back to
-1 and waits for the broker pod to become Ready. The `controller` node pool
-(KRaft metadata quorum) is never touched - Strimzi refuses to reconcile a
-Kafka cluster whose node pools sum to 0 replicas across the board, so a
-combined controller+broker pool can't be scaled to 0 to produce a broker
-outage; see `deploy/helm/nordwind-bank/templates/kafka/kafkanodepool.yaml`.
+`broker-down`, produces a real broker outage (the M7a chaos action, not a
+service fault mode). Scaling the `broker` KafkaNodePool to 0 does not work:
+Strimzi rejects a KRaft cluster without at least one broker replica ("At
+least one KafkaNodePool with the broker role and at least one replica is
+required", #78). Instead `broker-down` pauses the operator's reconciliation
+of the Kafka CR (`strimzi.io/pause-reconciliation=true`), waits for the
+`ReconciliationPaused` condition, and deletes the broker's StrimziPodSet -
+with reconciliation paused nothing recreates it, so the broker stays gone
+until `clear` removes the annotation and the operator rebuilds the pod
+(ephemeral storage: the demo topics come back empty, which is the point).
+The `controller` node pool (KRaft metadata quorum) is never touched.
 `cli/bankops/commands.py` imports `kafka_broker_down`/`kafka_clear` from
 here directly so `bankops chaos --estate kubernetes kafka` goes through the
 same code.
@@ -35,9 +39,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from bank.faults import VALID_MODES
 
-KAFKA_NODE_POOL = "broker"
+KAFKA_CLUSTER = "nordwind-bank"
+KAFKA_BROKER_PODSET = f"{KAFKA_CLUSTER}-broker"
 KAFKA_BROKER_POOL_LABEL_SELECTOR = "strimzi.io/pool-name=broker"
-_BROKER_READY_TIMEOUT = "180s"
+PAUSE_ANNOTATION = "strimzi.io/pause-reconciliation"
+_BROKER_READY_TIMEOUT = "600s"  # resume -> reconcile -> PodSet -> pod Ready took ~4 min locally
+_PAUSE_TIMEOUT = "120s"
 
 
 def patch_fault(service: str, mode: str, run=subprocess.run) -> None:
@@ -59,48 +66,68 @@ def patch_fault(service: str, mode: str, run=subprocess.run) -> None:
     )
 
 
-def scale_kafka_node_pool(replicas: int, run=subprocess.run) -> None:
-    patch = json.dumps({"spec": {"replicas": replicas}})
-    run(
-        [
-            "kubectl",
-            "-n",
-            "bank",
-            "patch",
-            "kafkanodepool",
-            KAFKA_NODE_POOL,
-            "--type",
-            "merge",
-            "-p",
-            patch,
-        ],
-        check=True,
+def _kubectl(run, *args: str) -> None:
+    run(["kubectl", "-n", "bank", *args], check=True)
+
+
+def pause_kafka_reconciliation(run=subprocess.run) -> None:
+    _kubectl(run, "annotate", "kafka", KAFKA_CLUSTER, f"{PAUSE_ANNOTATION}=true", "--overwrite")
+    _kubectl(
+        run,
+        "wait",
+        "--for=condition=ReconciliationPaused",
+        f"kafka/{KAFKA_CLUSTER}",
+        f"--timeout={_PAUSE_TIMEOUT}",
+    )
+
+
+def resume_kafka_reconciliation(run=subprocess.run) -> None:
+    _kubectl(run, "annotate", "kafka", KAFKA_CLUSTER, f"{PAUSE_ANNOTATION}-", "--overwrite")
+
+
+def delete_broker_podset(run=subprocess.run) -> None:
+    _kubectl(
+        run, "delete", "strimzipodset", KAFKA_BROKER_PODSET, "--ignore-not-found", "--wait=true"
     )
 
 
 def wait_for_broker_ready(run=subprocess.run, timeout: str = _BROKER_READY_TIMEOUT) -> None:
-    run(
-        [
-            "kubectl",
-            "-n",
-            "bank",
-            "wait",
-            "--for=condition=Ready",
-            "pod",
-            "-l",
-            KAFKA_BROKER_POOL_LABEL_SELECTOR,
-            f"--timeout={timeout}",
-        ],
-        check=True,
+    # After a resume the operator needs a full reconciliation (~4 min locally)
+    # before the broker PodSet exists again, and `kubectl wait` errors out on
+    # a resource that is not there yet - so wait for its creation first
+    # (`--for=create`, kubectl >= 1.31), then for its pod, then for Ready.
+    _kubectl(
+        run,
+        "wait",
+        "--for=create",
+        f"strimzipodset/{KAFKA_BROKER_PODSET}",
+        f"--timeout={timeout}",
+    )
+    _kubectl(
+        run,
+        "wait",
+        "--for=jsonpath={.status.pods}=1",
+        f"strimzipodset/{KAFKA_BROKER_PODSET}",
+        f"--timeout={timeout}",
+    )
+    _kubectl(
+        run,
+        "wait",
+        "--for=condition=Ready",
+        "pod",
+        "-l",
+        KAFKA_BROKER_POOL_LABEL_SELECTOR,
+        f"--timeout={timeout}",
     )
 
 
 def kafka_broker_down(run=subprocess.run) -> None:
-    scale_kafka_node_pool(0, run=run)
+    pause_kafka_reconciliation(run=run)
+    delete_broker_podset(run=run)
 
 
 def kafka_clear(run=subprocess.run) -> None:
-    scale_kafka_node_pool(1, run=run)
+    resume_kafka_reconciliation(run=run)
     wait_for_broker_ready(run=run)
 
 
