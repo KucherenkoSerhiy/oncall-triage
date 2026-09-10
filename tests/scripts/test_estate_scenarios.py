@@ -33,12 +33,14 @@ def test_run_cards_timeouts_happy_path(monkeypatch):
         "verdict": {"known": False, "action": "page", "model": "claude", "summary": "high latency"},
     }
 
+    listed = {**verdict_alert, "verdict": None}  # the list endpoint never carries verdicts
     responses = iter(
         [
             _alertmanager_response("SomethingElse"),
             _alertmanager_response("CardsAuthHighLatency"),
             _spine_alerts(),
-            _spine_alerts(verdict_alert),
+            _spine_alerts(listed),
+            (200, json.dumps(verdict_alert).encode()),  # GET /alerts/a1
         ]
     )
     monkeypatch.setattr(estate_scenarios, "http", lambda *a, **k: next(responses))
@@ -94,7 +96,13 @@ def test_wait_for_spine_verdict_times_out_when_no_verdict(monkeypatch):
         "received_at": "2026-01-01T00:00:01",
         "verdict": None,
     }
-    monkeypatch.setattr(estate_scenarios, "http", lambda *a, **k: _spine_alerts(seen_alert))
+
+    def fake_http(method, url, headers=None, body=None):
+        if url.endswith("/alerts/a1"):
+            return 200, json.dumps(seen_alert).encode()
+        return _spine_alerts(seen_alert)
+
+    monkeypatch.setattr(estate_scenarios, "http", fake_http)
 
     with pytest.raises(smoke.SmokeError, match="no verdict"):
         estate_scenarios.wait_for_spine_verdict(

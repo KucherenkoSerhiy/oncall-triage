@@ -119,8 +119,15 @@ def wait_for_spine_verdict(
                 and (alert.get("received_at") or "") >= not_before
             ):
                 seen_alert = True
-                if alert.get("verdict") is not None:
-                    return alert
+                # The list endpoint carries no verdicts (services/console_api
+                # store.list_alerts); only GET /alerts/{id} joins the verdict
+                # table - the first demo waited 10 min on a verdict that had
+                # landed after 15 s (#68).
+                status, one = http("GET", f"{api_base}/alerts/{alert['alert_id']}", headers=headers)
+                if status == 200:
+                    detailed = json.loads(one)
+                    if detailed.get("verdict") is not None:
+                        return detailed
         if now() >= deadline:
             if not seen_alert:
                 raise SmokeError(
