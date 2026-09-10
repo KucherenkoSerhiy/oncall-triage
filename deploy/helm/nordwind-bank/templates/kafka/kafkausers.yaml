@@ -1,0 +1,132 @@
+{{- if .Values.kafka.enabled }}
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: cards-authorization
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+    strimzi.io/cluster: {{ .Release.Name }}
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: card.authorized
+          patternType: literal
+        operations: ["Write", "Describe"]
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: fraud-scoring
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+    strimzi.io/cluster: {{ .Release.Name }}
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: card.authorized
+          patternType: literal
+        operations: ["Read", "Describe"]
+      - resource:
+          type: topic
+          name: fraud.scored
+          patternType: literal
+        operations: ["Write", "Describe"]
+      - resource:
+          type: group
+          name: fraud-scoring
+          patternType: literal
+        operations: ["Read"]
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: open-banking-api
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+    strimzi.io/cluster: {{ .Release.Name }}
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: fraud.scored
+          patternType: literal
+        operations: ["Read", "Describe"]
+      - resource:
+          type: group
+          name: open-banking-api
+          patternType: literal
+        operations: ["Read"]
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: alerts-bridge
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+    strimzi.io/cluster: {{ .Release.Name }}
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: alerts.raw
+          patternType: literal
+        operations: ["Write", "Describe"]
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: kafka-relay
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+    strimzi.io/cluster: {{ .Release.Name }}
+spec:
+  authentication:
+    type: scram-sha-512
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: alerts.raw
+          patternType: literal
+        operations: ["Read", "Describe"]
+      - resource:
+          type: group
+          name: kafka-relay
+          patternType: literal
+        operations: ["Read"]
+---
+# Used only by `scripts/estate_status.py --kafka` (kafka-consumer-groups.sh
+# --describe --all-groups needs a principal Kafka's simple authorizer
+# permits to read the internal __consumer_offsets topic and any group).
+# Declared a superuser on the Kafka resource above, so no ACLs are needed.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: admin
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+    strimzi.io/cluster: {{ .Release.Name }}
+spec:
+  authentication:
+    type: scram-sha-512
+{{- end }}

@@ -97,9 +97,9 @@ demonstrable on day one, exactly as the repo does today.
 | `auth` | AWS Lambda | token issuance / JWKS | `jwks-rotation` (unknown key id), `lockouts` | CloudWatch on custom metric `AuthFailures` | M4 ✅ |
 | `customer-notifications` | Azure Function | SMS / e-mail fan-out | `provider-429`, `backlog` | Azure Monitor metric alert on Function failures + storage-queue length | M5 ✅ |
 | `cards-authorization` | Kubernetes (kind) | ISO-8583-ish auth switch; **produces** `card.authorized` | `timeouts`, `issuer-down` | Prometheus rule on request p99 / error ratio | M6 (kind) |
-| `fraud-scoring` | Kubernetes (kind) | ML scoring; **consumes** `card.authorized`, **produces** `fraud.scored` | `model-drift`, `latency`, `crashloop`, `lag` (stops consuming) | Prometheus rules on `fraud_score_bucket` drift, pod restarts, `kafka_consumergroup_lag` | M6 (kind) |
-| `open-banking-api` | Kubernetes (kind) | PSD2 third-party API gateway; **consumes** `fraud.scored` | `rate-limit-storm` (429s), `cert-expiry` | Prometheus rules on 429 ratio, `probe_ssl_earliest_cert_expiry` | M6 (kind) |
-| *(platform)* | Kubernetes (kind) | Kafka broker (Strimzi, KRaft, 1 node), Prometheus, Alertmanager, relay | `broker-down` (scale Kafka to 0) | Alertmanager `KafkaBrokerDown`, `KafkaRelayLag` | M7 |
+| `fraud-scoring` | Kubernetes (kind) | ML scoring; **consumes** `card.authorized`, **produces** `fraud.scored` | `model-drift`, `latency`, `crashloop`, `lag` (stops consuming, live M7a) | Prometheus rules on `fraud_score_bucket` drift, pod restarts, `kafka_consumergroup_lag` | M6 (kind); Kafka wiring + `lag` M7a |
+| `open-banking-api` | Kubernetes (kind) | PSD2 third-party API gateway; **consumes** `fraud.scored` | `rate-limit-storm` (429s), `cert-expiry` | Prometheus rules on 429 ratio, `probe_ssl_earliest_cert_expiry` | M6 (kind); Kafka wiring M7a |
+| *(platform)* | Kubernetes (kind) | Kafka broker (Strimzi, KRaft, 1 node), Prometheus, Alertmanager, relay | `broker-down` (scale Kafka to 0, live M7a) | Alertmanager `KafkaBrokerDown`, `KafkaRelayLag` | Strimzi cluster + topics/users/ACLs M7a; alerts-bridge/kafka-relay + alert rules M7b |
 
 ## 4. Architecture
 

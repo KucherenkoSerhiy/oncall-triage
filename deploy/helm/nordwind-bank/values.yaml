@@ -11,10 +11,12 @@ forwarder:
   # template --set forwarder.url=...` is one flag for the whole estate.
   url: ""
 
-# Kafka producer/consumer hooks are M7; every service accepts this value
-# today and no-ops on it.
+# Strimzi Kafka (KRaft): the cluster, topics, SCRAM users/ACLs
+# (templates/kafka/), and the producer/consumer env + volumes on the three
+# service Deployments below. `helm template --set kafka.enabled=false`
+# renders the M6 estate with none of that (see README.md's Kafka section).
 kafka:
-  enabled: false
+  enabled: true
 
 monitoring:
   # kube-prometheus-stack's Helm release name. Stamped as the `release`

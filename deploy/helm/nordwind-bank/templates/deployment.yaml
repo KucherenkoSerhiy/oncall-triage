@@ -40,6 +40,17 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
+          {{- if $.Values.kafka.enabled }}
+          env:
+            - name: KAFKA_BOOTSTRAP
+              value: "{{ $.Release.Name }}-kafka-bootstrap.bank.svc:9093"
+            - name: KAFKA_USER
+              value: {{ .name }}
+            - name: KAFKA_PASSWORD_FILE
+              value: /etc/nordwind/kafka/user/password
+            - name: KAFKA_CA_FILE
+              value: /etc/nordwind/kafka/ca/ca.crt
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -60,6 +71,14 @@ spec:
             - name: faults
               mountPath: /etc/nordwind
               readOnly: true
+            {{- if $.Values.kafka.enabled }}
+            - name: kafka-user
+              mountPath: /etc/nordwind/kafka/user
+              readOnly: true
+            - name: kafka-ca
+              mountPath: /etc/nordwind/kafka/ca
+              readOnly: true
+            {{- end }}
       volumes:
         - name: faults
           configMap:
@@ -67,4 +86,12 @@ spec:
             items:
               - key: {{ .name }}
                 path: fault
+        {{- if $.Values.kafka.enabled }}
+        - name: kafka-user
+          secret:
+            secretName: {{ .name }}
+        - name: kafka-ca
+          secret:
+            secretName: {{ $.Release.Name }}-cluster-ca-cert
+        {{- end }}
 {{- end }}

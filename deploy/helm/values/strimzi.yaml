@@ -1,0 +1,21 @@
+# Values for the upstream `strimzi-kafka-operator` chart (helm repo add
+# strimzi https://strimzi.io/charts/), installed by `task estate-up` into
+# the `kafka` namespace. Version pinned in Taskfile.yml's STRIMZI_VERSION var.
+#
+# The operator Deployment itself runs in `kafka`; `watchNamespaces`
+# restricts which namespace(s) it reconciles Kafka/KafkaNodePool/KafkaTopic/
+# KafkaUser custom resources in, so it only manages `bank`'s Kafka cluster
+# (`watchAnyNamespace: false` keeps that scoped rather than cluster-wide).
+watchNamespaces:
+  - bank
+watchAnyNamespace: false
+
+# Upstream defaults 384Mi/384Mi - trimmed for kind, matching the rest of the
+# kind estate's resource requests/limits (see deploy/kind, kube-prometheus-stack.yaml).
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

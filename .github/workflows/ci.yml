@@ -88,17 +88,36 @@ jobs:
         run: |
           helm template deploy/helm/nordwind-bank | kubeconform -strict -summary -kubernetes-version 1.31.0 \
             -schema-location default \
-            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
       - name: helm template | kubeconform -strict (forwarder.url set)
         run: |
           helm template deploy/helm/nordwind-bank --set forwarder.url=https://example/x | kubeconform -strict -summary -kubernetes-version 1.31.0 \
             -schema-location default \
-            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
-      - name: Trivy config scan of the rendered manifests
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+      - name: helm template | kubeconform -strict (kafka.enabled=false)
         run: |
-          mkdir -p /tmp/rendered
-          helm template deploy/helm/nordwind-bank --set forwarder.url=https://example/x > /tmp/rendered/nordwind-bank.yaml
-          trivy config --exit-code 1 --severity HIGH,CRITICAL /tmp/rendered
+          helm template deploy/helm/nordwind-bank --set kafka.enabled=false | kubeconform -strict -summary -kubernetes-version 1.31.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+      - name: Trivy config scan of the rendered manifests (kafka.enabled=true and false)
+        run: |
+          mkdir -p /tmp/rendered-true /tmp/rendered-false
+          helm template deploy/helm/nordwind-bank --set forwarder.url=https://example/x > /tmp/rendered-true/nordwind-bank.yaml
+          helm template deploy/helm/nordwind-bank --set forwarder.url=https://example/x --set kafka.enabled=false > /tmp/rendered-false/nordwind-bank.yaml
+          trivy config --exit-code 1 --severity HIGH,CRITICAL /tmp/rendered-true
+          trivy config --exit-code 1 --severity HIGH,CRITICAL /tmp/rendered-false
+
+  contract:
+    name: contract - Redpanda-backed Kafka contract tests (testcontainers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: pytest tests/contract -m contract
 
   c4:
     name: c4 - model validates and generated diagrams are current

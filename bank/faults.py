@@ -17,4 +17,7 @@ VALID_MODES: dict[str, tuple[str, ...]] = {
     "cards-authorization": ("timeouts", "issuer-down"),
     "fraud-scoring": ("model-drift", "latency", "crashloop", "lag"),
     "open-banking-api": ("rate-limit-storm", "cert-expiry"),
+    # Not a service: a chaos action against the Strimzi KafkaNodePool (M7a).
+    # See scripts/chaos_k8s.py's kafka_broker_down/kafka_clear.
+    "kafka": ("broker-down",),
 }

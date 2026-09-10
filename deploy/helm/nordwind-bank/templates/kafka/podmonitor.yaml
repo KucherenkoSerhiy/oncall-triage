@@ -1,0 +1,26 @@
+{{- if .Values.kafka.enabled }}
+# Strimzi labels every pod it manages for this cluster (brokers and the
+# kafka-exporter pod alike) with strimzi.io/cluster - one PodMonitor with
+# two port names covers both; each is a no-op selector for pods that don't
+# have a matching container port.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: kafka
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+    release: {{ .Values.monitoring.release }}
+spec:
+  selector:
+    matchLabels:
+      strimzi.io/cluster: {{ .Release.Name }}
+  podMetricsEndpoints:
+    # Broker JMX metrics (metricsConfig on the Kafka resource).
+    - port: tcp-prometheus
+      path: /metrics
+      interval: 15s
+    # kafka-exporter's kafka_consumergroup_lag et al.
+    - port: metrics
+      path: /metrics
+      interval: 15s
+{{- end }}

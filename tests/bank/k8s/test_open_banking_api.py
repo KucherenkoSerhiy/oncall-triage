@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from prometheus_client import CollectorRegistry
 
+from bank.k8s._shared.kafka import KafkaMetrics
 from bank.k8s.open_banking_api.service import OpenBankingApiService
 
 
@@ -11,6 +12,22 @@ class FakeFaultFile:
 
     def current(self) -> str | None:
         return self.mode
+
+
+class FakeMessage:
+    def __init__(self, value: bytes) -> None:
+        self._value = value
+
+    def value(self) -> bytes:
+        return self._value
+
+
+class FakeConsumer:
+    def __init__(self) -> None:
+        self.committed: list[FakeMessage] = []
+
+    def commit(self, message: FakeMessage | None = None, **kwargs: object) -> None:
+        self.committed.append(message)
 
 
 def _counter_value(registry: CollectorRegistry, name: str, **labels: str) -> float:
@@ -54,3 +71,17 @@ def test_cert_expiry_mode_sets_gauge_three_days_out():
     service.work()
 
     assert registry.get_sample_value("openbanking_cert_expiry_seconds") == now + 3 * 24 * 3600
+
+
+def test_handle_fraud_scored_counts_and_commits():
+    registry = CollectorRegistry()
+    kafka_metrics = KafkaMetrics.create(registry)
+    service = OpenBankingApiService(registry, kafka_metrics=kafka_metrics)
+    consumer = FakeConsumer()
+    message = FakeMessage(b'{"txn_id": "t-1", "score": 0.1}')
+
+    service.handle_fraud_scored(consumer, message)
+
+    assert registry.get_sample_value("openbanking_events_consumed_total") == 1
+    assert _counter_value(registry, "kafka_events_consumed_total", topic="fraud.scored") == 1
+    assert consumer.committed == [message]

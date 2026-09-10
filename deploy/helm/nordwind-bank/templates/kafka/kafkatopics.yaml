@@ -1,0 +1,17 @@
+{{- if .Values.kafka.enabled }}
+{{- range list "card.authorized" "fraud.scored" "alerts.raw" }}
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: {{ . }}
+  labels:
+    app.kubernetes.io/part-of: nordwind-bank
+    strimzi.io/cluster: {{ $.Release.Name }}
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: "86400000"
+{{- end }}
+{{- end }}

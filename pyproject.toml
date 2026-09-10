@@ -20,8 +20,11 @@ ignore = ["RUF001", "RUF002", "RUF003"]  # unicode dashes/arrows in strings are 
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -m \"not contract\""
 filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "contract: Redpanda-backed Kafka contract tests (testcontainers, needs Docker); excluded by default addopts, run with -m contract",
+]
 
 [tool.mypy]
 python_version = "3.12"
