@@ -17,6 +17,16 @@ them is secret): `AWS_DEPLOY_ROLE_ARN`, `TF_STATE_BUCKET`, `AZURE_CLIENT_ID`,
 `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`. The one real secret,
 `BUDGET_EMAIL`, is an environment secret only because it is personal data.
 
+**The Kubernetes estate is deliberately not here.** `cards-authorization`,
+`fraud-scoring` and `open-banking-api` run in [kind](https://kind.sigs.k8s.io/),
+not on a Terraform-provisioned cloud cluster - ADR
+[0007](../docs/adr/0007-kubernetes-on-kind.md) (design decision D7): a
+managed cluster's node VM is the one thing that isn't free. There is no
+`infra/kubernetes` root; the chart is `deploy/helm/nordwind-bank`, the
+cluster config is `deploy/kind/cluster.yaml`, and `task estate-up/down`
+(`.github/workflows/estate-demo.yml` in CI) stand in for `terraform
+plan`/`apply`. See `docs/runbooks/kubernetes-estate.md`.
+
 ## Bootstrap (once)
 
 ```bash

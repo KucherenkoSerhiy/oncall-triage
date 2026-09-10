@@ -2,6 +2,50 @@
 
 Minimal choices made where the spec left room, for the record.
 
+## M6b additions
+
+- **`bank/faults.py` is host-side only.** The spec asks for one shared
+  `VALID_MODES` table for `bankops chaos --estate kubernetes` and
+  `task chaos-k8s`. The per-service `VALID_MODES` tuples in
+  `bank/k8s/<service>/service.py` stay as they are (used by `FaultFile` to
+  warn on an unrecognised ConfigMap value) rather than importing the new
+  module: each service's Docker image copies only `_shared/` and its own
+  service directory (M6a's sibling-import trick), not the repo root, so
+  `bank/faults.py` would not exist inside the container. The new module is
+  a small, deliberate duplication scoped to the two host-side tools that
+  actually need a shared table.
+- **kind node image digest**: pinned to kind's own published v0.25.0
+  release image, `kindest/node:v1.31.2@sha256:18fbefc2...` (full digest in
+  `deploy/kind/cluster.yaml` and `Taskfile.yml`'s `KIND_NODE_IMAGE` var) -
+  verified against `kubernetes-sigs/kind`'s GitHub release notes rather than
+  guessed, since a wrong digest fails cluster creation outright.
+- **`scripts/estate_scenarios.py`'s two-hop wait, one message set**: the
+  spec names three possible failures ("rule never fired / Alertmanager
+  never delivered / no verdict") but only two budgets (`--alert-timeout`,
+  `--verdict-timeout`). `wait_for_rule_firing` owns the first message;
+  `wait_for_spine_verdict` tracks whether it has ever seen a matching alert
+  at all (regardless of verdict) and picks "never delivered" vs "no
+  verdict" from that single flag when its one budget expires - no third
+  budget needed.
+- **C4 (`docs/c4/workspace.dsl`)**: the model already had `kafka`,
+  `alerts-bridge` and `kafka-relay` inside `k8sEstate` (drafted ahead of
+  M7, presumably from the original whole-estate DESIGN.md sketch) and a
+  single `demo` deployment environment nesting the kind clusters alongside
+  AWS/Azure. Non-requirement 1 for this milestone ("Kafka/Strimzi and
+  route A (M7)") means those containers/relationships come out now, not
+  just get left stale; they return in M7. The kind laptop/GitHub-runner
+  deployment nodes moved out of `demo` into their own `deploymentEnvironment
+  "kind"` (a second deployment view, `deployment-kind`) per requirement 7's
+  explicit wording, rather than nesting them inside `demo` as before.
+- **`k8sEstate` drops out of the `context` (system context) view**: with
+  `kafka-relay -> triage.ingest` gone, the model has no relationship path
+  from `k8sEstate` to `triage` at all until M7 - the only route out today is
+  `k8sEstate.alertmanager -> azureEstate.forwarder`, one hop short of
+  `triage`. That is an accurate statement about the current architecture
+  (a Kubernetes alert cannot reach the spine without the Azure forwarder
+  yet), not a rendering bug, so the context view is left as Structurizr
+  computes it rather than forcing `k8sEstate` back in with an `include`.
+
 - **Where the ticker thread lives vs. where the process exits**: the ticker
   (`bank/k8s/_shared/ticker.py`) runs `work()` on a background daemon
   thread, as the spec's "in-process ticker thread" wording implies. But an

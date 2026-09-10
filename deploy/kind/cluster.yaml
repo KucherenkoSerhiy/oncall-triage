@@ -1,0 +1,22 @@
+# kind cluster config for the nordwind-bank Kubernetes estate (M6b).
+# One control-plane node (no workers - the three services and
+# kube-prometheus-stack are light enough to share it). Node image pinned by
+# digest to kind's official v1.31.2 build (kept in sync with Taskfile.yml's
+# KIND_NODE_IMAGE var - see kubernetes-sigs/kind release v0.25.0).
+#
+# extraPortMappings expose the NodePort Services that
+# deploy/helm/values/kube-prometheus-stack.yaml creates for Prometheus
+# (30090) and Alertmanager (30093), so http://localhost:9090 and
+# http://localhost:9093 work with no `kubectl port-forward`.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e
+    extraPortMappings:
+      - containerPort: 30090
+        hostPort: 9090
+        protocol: TCP
+      - containerPort: 30093
+        hostPort: 9093
+        protocol: TCP

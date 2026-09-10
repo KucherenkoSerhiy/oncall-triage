@@ -2,6 +2,7 @@
 
 [![ci](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/ci.yml/badge.svg)](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/ci.yml)
 [![deploy](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/deploy.yml/badge.svg)](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/deploy.yml)
+[![estate-demo](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/estate-demo.yml/badge.svg)](https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/estate-demo.yml)
 [![license](https://img.shields.io/badge/license-MIT-0f766e)](LICENSE)
 
 An LLM-powered alert-triage service for a fictional bank, built the way a
@@ -77,7 +78,7 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 | M3 | Triage worker on Lambda (ADK + Claude), known-issue store on DynamoDB, teach from console, rollback by SHA | ✅ live (2026-09-09): real Claude verdicts via the image-based worker, smoke asserts a model verdict + a known-issue short-circuit |
 | M4 | AWS estate: three services + CloudWatch alarms + chaos | ✅ live (2026-09-10): `bankops chaos payments --mode pool` -> CloudWatch alarm -> verdict `known, ack` in ~4 min, unattended ([#18](https://github.com/KucherenkoSerhiy/oncall-triage/issues/18)) |
 | M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | 🔨 code merged ([#19](https://github.com/KucherenkoSerhiy/oncall-triage/issues/19)), first apply in progress ([#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20), [#52](https://github.com/KucherenkoSerhiy/oncall-triage/issues/52)) |
-| M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | 🔍 services + chart in review ([#54](https://github.com/KucherenkoSerhiy/oncall-triage/pull/54)); cluster + demo next ([#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
+| M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ✅ chart merged ([#54](https://github.com/KucherenkoSerhiy/oncall-triage/pull/54)); kind cluster, `task estate-up/down/status/chaos-k8s`, `estate-demo.yml` ([#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
 | M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | ⏳ [#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24) |
 | M8 | C4 drift check against Terraform tags and Helm labels | ⏳ [#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25) |
 | M9 | Hardening: self-observability + SLO, runbooks, rollback drill | ⏳ [#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30) |

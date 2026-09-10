@@ -163,7 +163,10 @@ def test_chaos_status_prints_table(monkeypatch, capsys):
     monkeypatch.setattr(commands.client, "request", fake_request)
 
     exit_code = commands.cmd_chaos(
-        argparse.Namespace(service=None, mode=None, minutes=5, clear=False, status=True), CONFIG
+        argparse.Namespace(
+            service=None, mode=None, minutes=5, clear=False, status=True, estate="aws"
+        ),
+        CONFIG,
     )
 
     assert exit_code == 0
@@ -184,7 +187,9 @@ def test_chaos_sets_a_fault(monkeypatch):
     monkeypatch.setattr(commands.client, "request", fake_request)
 
     exit_code = commands.cmd_chaos(
-        argparse.Namespace(service="payments", mode="errors", minutes=5, clear=False, status=False),
+        argparse.Namespace(
+            service="payments", mode="errors", minutes=5, clear=False, status=False, estate="aws"
+        ),
         CONFIG,
     )
 
@@ -209,7 +214,12 @@ def test_chaos_sets_a_fault_for_customer_notifications(monkeypatch):
 
     exit_code = commands.cmd_chaos(
         argparse.Namespace(
-            service="customer-notifications", mode="backlog", minutes=5, clear=False, status=False
+            service="customer-notifications",
+            mode="backlog",
+            minutes=5,
+            clear=False,
+            status=False,
+            estate="aws",
         ),
         CONFIG,
     )
@@ -228,7 +238,12 @@ def test_chaos_rejects_invalid_mode_client_side(monkeypatch, capsys):
 
     exit_code = commands.cmd_chaos(
         argparse.Namespace(
-            service="payments", mode="not-a-mode", minutes=5, clear=False, status=False
+            service="payments",
+            mode="not-a-mode",
+            minutes=5,
+            clear=False,
+            status=False,
+            estate="aws",
         ),
         CONFIG,
     )
@@ -251,13 +266,133 @@ def test_chaos_clears_a_fault(monkeypatch):
     monkeypatch.setattr(commands.client, "request", fake_request)
 
     exit_code = commands.cmd_chaos(
-        argparse.Namespace(service="ledger", mode=None, minutes=5, clear=True, status=False),
+        argparse.Namespace(
+            service="ledger", mode=None, minutes=5, clear=True, status=False, estate="aws"
+        ),
         CONFIG,
     )
 
     assert exit_code == 0
     assert captured["method"] == "DELETE"
     assert captured["url"] == "https://api.example.com/chaos/ledger"
+
+
+def test_chaos_kubernetes_patches_the_configmap(monkeypatch):
+    captured = {}
+
+    def fake_run(argv, check=False):
+        captured["argv"] = argv
+        captured["check"] = check
+
+    monkeypatch.setattr(commands.subprocess, "run", fake_run)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service="cards-authorization",
+            mode="timeouts",
+            minutes=5,
+            clear=False,
+            status=False,
+            estate="kubernetes",
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 0
+    assert captured["check"] is True
+    assert captured["argv"][:6] == [
+        "kubectl",
+        "-n",
+        "bank",
+        "patch",
+        "configmap",
+        "nordwind-faults",
+    ]
+    patch_arg = captured["argv"][-1]
+    assert json.loads(patch_arg) == {"data": {"cards-authorization": "timeouts"}}
+
+
+def test_chaos_kubernetes_clear_writes_empty_string(monkeypatch):
+    captured = {}
+
+    def fake_run(argv, check=False):
+        captured["argv"] = argv
+
+    monkeypatch.setattr(commands.subprocess, "run", fake_run)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service="fraud-scoring",
+            mode=None,
+            minutes=5,
+            clear=True,
+            status=False,
+            estate="kubernetes",
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 0
+    assert json.loads(captured["argv"][-1]) == {"data": {"fraud-scoring": ""}}
+
+
+def test_chaos_kubernetes_rejects_invalid_mode_client_side(monkeypatch):
+    def fake_run(argv, check=False):
+        raise AssertionError("should not shell out for an invalid mode")
+
+    monkeypatch.setattr(commands.subprocess, "run", fake_run)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service="cards-authorization",
+            mode="not-a-mode",
+            minutes=5,
+            clear=False,
+            status=False,
+            estate="kubernetes",
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 1
+
+
+def test_chaos_kubernetes_rejects_unknown_service(monkeypatch):
+    def fake_run(argv, check=False):
+        raise AssertionError("should not shell out for an unknown service")
+
+    monkeypatch.setattr(commands.subprocess, "run", fake_run)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service="not-a-service",
+            mode="timeouts",
+            minutes=5,
+            clear=False,
+            status=False,
+            estate="kubernetes",
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 1
+
+
+def test_chaos_status_hints_at_kubernetes(monkeypatch, capsys):
+    def fake_request(method, url, headers=None, body=None):
+        return json.dumps([]).encode()
+
+    monkeypatch.setattr(commands.client, "request", fake_request)
+
+    exit_code = commands.cmd_chaos(
+        argparse.Namespace(
+            service=None, mode=None, minutes=5, clear=False, status=True, estate="aws"
+        ),
+        CONFIG,
+    )
+
+    assert exit_code == 0
+    assert "kubernetes" in capsys.readouterr().out.lower()
 
 
 def test_known_lists_issues(monkeypatch, capsys):

@@ -5,13 +5,21 @@ GitHub-renderable README.md. Run by `task c4` and by CI after the export.
 from pathlib import Path
 
 GENERATED = Path(__file__).resolve().parent.parent / "docs" / "c4" / "generated"
-ORDER = ["context", "containers", "k8s-estate", "worker-components", "deployment"]
+ORDER = [
+    "context",
+    "containers",
+    "k8s-estate",
+    "worker-components",
+    "deployment",
+    "deployment-kind",
+]
 TITLES = {
     "context": "Level 1 — system context",
     "containers": "Level 2 — the triage brain and its inbound sources",
-    "k8s-estate": "Level 2 — the Kubernetes estate: services, Kafka, Prometheus, both alert routes",
+    "k8s-estate": "Level 2 — the Kubernetes estate: services, Prometheus, Alertmanager route B",
     "worker-components": "Level 3 — inside the triage worker",
-    "deployment": "Deployment — where every container runs in `demo`",
+    "deployment": "Deployment — where every container runs in `demo` (AWS, Azure)",
+    "deployment-kind": "Deployment — where the Kubernetes estate runs (laptop, GitHub Actions)",
 }
 
 

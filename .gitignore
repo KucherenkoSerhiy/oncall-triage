@@ -15,3 +15,6 @@ infra/azure/build/
 # tooling caches
 .ruff_cache/
 .mypy_cache/
+
+# task estate-up's rendered Alertmanager values (Taskfile.yml)
+/.tmp/
