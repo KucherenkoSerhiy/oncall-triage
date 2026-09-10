@@ -11,6 +11,7 @@ metadata:
     strimzi.io/node-pools: enabled
   labels:
     app.kubernetes.io/part-of: nordwind-bank
+    nordwind.dev/c4-container: kafka
 spec:
   kafka:
     version: 3.9.0

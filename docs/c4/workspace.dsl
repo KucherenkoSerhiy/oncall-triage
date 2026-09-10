@@ -14,9 +14,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         cli = softwareSystem "bankops CLI" "fire, chaos, teach, tail, estate up|down" "Tool"
 
         triage = softwareSystem "Alert Triage" "Ingests alerts from every estate, triages them with Claude, remembers known issues, publishes verdicts." {
-            ingest = container "ingest" "HMAC-verifies webhooks, normalises to the canonical alert, scrubs PII, dedups by fingerprint, enqueues." "AWS Lambda (Python)"
-            queue = container "alerts queue" "Decouples ingestion from LLM latency; dead-letter queue for poison alerts." "SQS + DLQ" "Queue"
-            worker = container "triage worker" "Runs the three-role ADK workflow once per alert and writes the verdict." "AWS Lambda container image (Python, Google ADK)" {
+            ingest = container "ingest" "HMAC-verifies webhooks, normalises to the canonical alert, scrubs PII, dedups by fingerprint, enqueues." "AWS Lambda (Python)" "Deployable"
+            queue = container "alerts queue" "Decouples ingestion from LLM latency; dead-letter queue for poison alerts." "SQS + DLQ" "Queue,Deployable"
+            worker = container "triage worker" "Runs the three-role ADK workflow once per alert and writes the verdict." "AWS Lambda container image (Python, Google ADK)" "Deployable" {
                 agent = component "triage agent" "Root agent: pulls alert context, checks the known-issues store, decides the hand-off." "ADK Agent"
                 researcher = component "researcher" "Characterises a genuinely new error from its text alone: cause category, severity, next step. Deliberately tool-less." "ADK Agent"
                 reporter = component "reporter" "Produces the final text in exactly one of two formats plus a machine-readable verdict block." "ADK Agent"
@@ -24,44 +24,44 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
                 knownStore = component "KnownIssueStore" "JsonFileStore for tests and local runs, DynamoStore in the cloud." "Python interface + adapters"
                 llm = component "LiteLlm model adapter" "anthropic/claude-haiku-4-5" "google.adk.models.lite_llm"
             }
-            store = container "alerts, verdicts, known-issues" "Alert log, one verdict per alert, taught known issues per service." "DynamoDB (3 tables)" "Database"
-            api = container "console API" "Reads alerts and verdicts; accepts taught known issues. Bearer-token protected (v1)." "AWS Lambda + API Gateway HTTP API"
-            console = container "incident console" "Live alert list, verdicts, known-issues editor." "Static site on S3 + CloudFront at triage.serhiykucherenko.dev" "Browser"
-            secrets = container "secrets" "Anthropic key and webhook HMAC secret." "SSM Parameter Store (SecureString)"
-            dashboard = container "self-observability" "Ingest rate, verdict latency p95, DLQ depth, SLO attainment; five ops alarms." "CloudWatch dashboard"
-            ops = container "ops topic" "Human-only: CloudWatch alarm state changes for the triage brain itself, never fed back into ingest." "SNS" "Queue"
-            sloReporter = container "slo-reporter" "Daily (00:15 UTC): reads yesterday's triaged alerts and verdicts, computes latency p95 and SLO attainment." "AWS Lambda (Python)"
-            dns = container "dns" "DNSSEC-signed; query logs" "Route 53 hosted zone"
-            knownIssuesBucket = container "known-issues bucket" "Weekly JSON export of taught known issues, so the memory survives a table wipe; expires after 30 days." "S3" "Database"
-            knownIssuesExport = container "known-issues-export" "Weekly (Monday 00:30 UTC): scans the known-issues table and writes a dated JSON export to the bucket." "AWS Lambda (Python)"
+            store = container "alerts, verdicts, known-issues" "Alert log, one verdict per alert, taught known issues per service." "DynamoDB (3 tables)" "Database,Deployable"
+            api = container "console API" "Reads alerts and verdicts; accepts taught known issues. Bearer-token protected (v1)." "AWS Lambda + API Gateway HTTP API" "Deployable"
+            console = container "incident console" "Live alert list, verdicts, known-issues editor." "Static site on S3 + CloudFront at triage.serhiykucherenko.dev" "Browser,Deployable"
+            secrets = container "secrets" "Anthropic key and webhook HMAC secret." "SSM Parameter Store (SecureString)" "Deployable"
+            dashboard = container "self-observability" "Ingest rate, verdict latency p95, DLQ depth, SLO attainment; five ops alarms." "CloudWatch dashboard" "Deployable"
+            ops = container "ops topic" "Human-only: CloudWatch alarm state changes for the triage brain itself, never fed back into ingest." "SNS" "Queue,Deployable"
+            sloReporter = container "slo-reporter" "Daily (00:15 UTC): reads yesterday's triaged alerts and verdicts, computes latency p95 and SLO attainment." "AWS Lambda (Python)" "Deployable"
+            dns = container "dns" "DNSSEC-signed; query logs" "Route 53 hosted zone" "Deployable"
+            knownIssuesBucket = container "known-issues bucket" "Weekly JSON export of taught known issues, so the memory survives a table wipe; expires after 30 days." "S3" "Database" "Deployable"
+            knownIssuesExport = container "known-issues-export" "Weekly (Monday 00:30 UTC): scans the known-issues table and writes a dated JSON export to the bucket." "AWS Lambda (Python)" "Deployable"
         }
 
         awsEstate = softwareSystem "Nordwind serverless estate (AWS)" "Three bank services on Lambda with CloudWatch alarms." {
-            payments = container "payments" "Card payment authorisation API. Chaos: errors, latency, pool." "AWS Lambda (Python)"
-            ledgerQueue = container "ledger queue" "Decouples payments from ledger posting; DLQ after 5 failed attempts." "SQS + DLQ" "Queue"
-            ledger = container "ledger" "Double-entry posting worker fed by SQS. Chaos: reconciliation-mismatch, lag." "AWS Lambda (Python)"
-            auth = container "auth" "Token issuance / JWKS. Chaos: jwks-rotation, lockouts." "AWS Lambda (Python)"
-            alarms = container "alarm topic" "CloudWatch alarm state changes fan out here." "SNS" "Queue"
-            faults = container "faults" "One fault flag per service, set by bankops chaos or the console API." "DynamoDB" "Database"
+            payments = container "payments" "Card payment authorisation API. Chaos: errors, latency, pool." "AWS Lambda (Python)" "Deployable"
+            ledgerQueue = container "ledger queue" "Decouples payments from ledger posting; DLQ after 5 failed attempts." "SQS + DLQ" "Queue,Deployable"
+            ledger = container "ledger" "Double-entry posting worker fed by SQS. Chaos: reconciliation-mismatch, lag." "AWS Lambda (Python)" "Deployable"
+            auth = container "auth" "Token issuance / JWKS. Chaos: jwks-rotation, lockouts." "AWS Lambda (Python)" "Deployable"
+            alarms = container "alarm topic" "CloudWatch alarm state changes fan out here." "SNS" "Queue,Deployable"
+            faults = container "faults" "One fault flag per service, set by bankops chaos or the console API." "DynamoDB" "Database,Deployable"
         }
 
         azureEstate = softwareSystem "Nordwind serverless estate (Azure)" "One bank service on Azure Functions, Azure Monitor alerts, and the always-on alert forwarder." {
-            notifications = container "customer-notifications" "SMS / e-mail fan-out. Chaos: provider-429, backlog." "Azure Function (Python)"
-            appInsights = container "Application Insights" "Custom metrics (provider_429, notifications_backlog) and exceptions from customer-notifications; the alert rules query it." "Application Insights + Log Analytics"
-            monitor = container "Azure Monitor" "Metric alert rules + action group." "Azure Monitor"
-            forwarder = container "alert forwarder" "Receives Azure Monitor action-group calls and Alertmanager route-B webhooks, signs with HMAC, posts to ingest." "Azure Function (Python)"
+            notifications = container "customer-notifications" "SMS / e-mail fan-out. Chaos: provider-429, backlog." "Azure Function (Python)" "Deployable"
+            appInsights = container "Application Insights" "Custom metrics (provider_429, notifications_backlog) and exceptions from customer-notifications; the alert rules query it." "Application Insights + Log Analytics" "Deployable"
+            monitor = container "Azure Monitor" "Metric alert rules + action group." "Azure Monitor" "Deployable"
+            forwarder = container "alert forwarder" "Receives Azure Monitor action-group calls and Alertmanager route-B webhooks, signs with HMAC, posts to ingest." "Azure Function (Python)" "Deployable"
         }
 
         k8sEstate = softwareSystem "Nordwind Kubernetes estate (kind)" "Three bank services plus a Kafka backbone on Kubernetes, with Prometheus and Alertmanager routing alerts over Kafka (route A) or straight to the forwarder (route B, Kafka's own alerts). Runs in kind on a laptop or a GitHub Actions runner." {
-            cards = container "cards-authorization" "ISO-8583-style auth switch. Chaos: timeouts, issuer-down." "Deployment (Python)"
-            fraud = container "fraud-scoring" "ML scoring. Chaos: model-drift, latency, crashloop, lag." "Deployment (Python)"
-            openBanking = container "open-banking-api" "PSD2 third-party API gateway. Chaos: rate-limit-storm, cert-expiry." "Deployment (Python)"
-            kafka = container "kafka" "Business event backbone and alert transport: card.authorized, fraud.scored, alerts.raw." "Strimzi (KRaft)" "Queue"
-            kafkaExporter = container "kafka-exporter" "Exports per-consumer-group lag (kafka_consumergroup_lag). Chaos: broker-down (scales the broker KafkaNodePool to 0)." "Strimzi kafka-exporter"
-            alertsBridge = container "alerts-bridge" "Alertmanager webhook receiver; produces one Kafka message per alert to alerts.raw (route A's first hop)." "Deployment (Python)"
-            kafkaRelay = container "kafka-relay" "Consumes alerts.raw, HMAC-signs, and POSTs to ingest (route A's second hop)." "Deployment (Python)"
-            prometheus = container "prometheus" "Scrapes services, Kafka, and kafka-exporter; evaluates the eleven PrometheusRules." "kube-prometheus-stack"
-            alertmanager = container "alertmanager" "Routes firing alerts to route-a-kafka by default; Kafka's own alerts (KafkaBrokerDown, KafkaRelayLag, AlertsBridgeDown, KafkaRelayDown) take route-b-forwarder instead." "kube-prometheus-stack"
+            cards = container "cards-authorization" "ISO-8583-style auth switch. Chaos: timeouts, issuer-down." "Deployment (Python)" "Deployable"
+            fraud = container "fraud-scoring" "ML scoring. Chaos: model-drift, latency, crashloop, lag." "Deployment (Python)" "Deployable"
+            openBanking = container "open-banking-api" "PSD2 third-party API gateway. Chaos: rate-limit-storm, cert-expiry." "Deployment (Python)" "Deployable"
+            kafka = container "kafka" "Business event backbone and alert transport: card.authorized, fraud.scored, alerts.raw." "Strimzi (KRaft)" "Queue,Deployable"
+            kafkaExporter = container "kafka-exporter" "Exports per-consumer-group lag (kafka_consumergroup_lag). Chaos: broker-down (scales the broker KafkaNodePool to 0)." "Strimzi kafka-exporter" "Deployable"
+            alertsBridge = container "alerts-bridge" "Alertmanager webhook receiver; produces one Kafka message per alert to alerts.raw (route A's first hop)." "Deployment (Python)" "Deployable"
+            kafkaRelay = container "kafka-relay" "Consumes alerts.raw, HMAC-signs, and POSTs to ingest (route A's second hop)." "Deployment (Python)" "Deployable"
+            prometheus = container "prometheus" "Scrapes services, Kafka, and kafka-exporter; evaluates the eleven PrometheusRules." "kube-prometheus-stack" "Deployable"
+            alertmanager = container "alertmanager" "Routes firing alerts to route-a-kafka by default; Kafka's own alerts (KafkaBrokerDown, KafkaRelayLag, AlertsBridgeDown, KafkaRelayDown) take route-b-forwarder instead." "kube-prometheus-stack" "Deployable"
         }
 
         // people
@@ -262,6 +262,18 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         container k8sEstate "k8s-estate" "Level 2 - the Kubernetes estate: three services, Kafka, alerts-bridge, kafka-relay, Prometheus, Alertmanager routing to both routes." {
             include *
             include triage.ingest azureEstate.forwarder
+            autolayout lr
+        }
+
+        container awsEstate "aws-estate" "Level 2 - the AWS estate: payments, ledger, auth, CloudWatch alarms feeding the triage brain." {
+            include *
+            include triage.ingest triage.api
+            autolayout lr
+        }
+
+        container azureEstate "azure-estate" "Level 2 - the Azure estate: customer-notifications, Azure Monitor, the alert forwarder relaying to the triage brain and (route B) the Kubernetes estate." {
+            include *
+            include triage.ingest triage.api k8sEstate.alertmanager
             autolayout lr
         }
 

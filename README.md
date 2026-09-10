@@ -38,10 +38,12 @@ hand-off from what the store returned, not a fixed pipeline.
 
 The C4 model lives in [`docs/c4/workspace.dsl`](docs/c4/workspace.dsl) and
 is exported to [`docs/c4/generated/`](docs/c4/generated/) by CI (context,
-containers, the Kubernetes estate, worker components, deployment). The
-full design — decisions, cost model, security posture, pipelines,
-milestones — is [`docs/DESIGN.md`](docs/DESIGN.md); each decision has an
-ADR in [`docs/adr/`](docs/adr/).
+containers, one view per bank estate, worker components, deployment); a
+drift check (`scripts/c4_drift.py`) keeps it honest against Terraform tags
+and Helm labels — see [`docs/c4/README.md`](docs/c4/README.md). The full
+design — decisions, cost model, security posture, pipelines, milestones —
+is [`docs/DESIGN.md`](docs/DESIGN.md); each decision has an ADR in
+[`docs/adr/`](docs/adr/).
 
 ```mermaid
 flowchart LR
@@ -80,7 +82,7 @@ transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.m
 | M5 | Azure estate: Functions + Azure Monitor + alert forwarder + chaos | ✅ live (2026-09-10, swedencentral): `bankops chaos customer-notifications --mode provider-429` -> Azure Monitor rule -> forwarder -> verdict `page` in ~7 min ([#20](https://github.com/KucherenkoSerhiy/oncall-triage/issues/20)) |
 | M6 | Kubernetes estate on kind: Helm chart, Prometheus/Alertmanager, route B, `estate-demo.yml` | ✅ live (2026-09-10): `estate-demo.yml` builds a kind cluster on a GitHub runner, faults cards-authorization, and the Prometheus alert reaches a verdict `page` through route B in one 20-min job ([#22](https://github.com/KucherenkoSerhiy/oncall-triage/issues/22)) |
 | M7 | Kafka backbone: Strimzi, topics, alerts-bridge + kafka-relay (route A), consumer-lag alerts | 🔨 merged ([#23](https://github.com/KucherenkoSerhiy/oncall-triage/issues/23), [#24](https://github.com/KucherenkoSerhiy/oncall-triage/issues/24)); live probe = the three-scenario `estate-demo.yml` run, being stabilised ([#76](https://github.com/KucherenkoSerhiy/oncall-triage/issues/76), [#78](https://github.com/KucherenkoSerhiy/oncall-triage/issues/78)) |
-| M8 | C4 drift check against Terraform tags and Helm labels | ⏳ [#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25) |
+| M8 | C4 drift check against Terraform tags and Helm labels | ✅ `scripts/c4_drift.py` in `ci.yml`'s `c4` job ([#25](https://github.com/KucherenkoSerhiy/oncall-triage/issues/25)) |
 | M9 | Hardening: self-observability + SLO, runbooks, rollback drill | 🔨 M9a self-observability done: dashboard, 5 `ops` alarms, `docs/slo.md` + `slo-reporter`, `CapReached` ([#26](https://github.com/KucherenkoSerhiy/oncall-triage/issues/26)); known-issues export, DNSSEC, OIDC subjects, runbooks and the rollback drill remain ([#27](https://github.com/KucherenkoSerhiy/oncall-triage/issues/27)–[#30](https://github.com/KucherenkoSerhiy/oncall-triage/issues/30)); M9c: query logging live, DNSSEC signing merged behind a flag until the bootstrap grants KMS rights ([#28](https://github.com/KucherenkoSerhiy/oncall-triage/issues/28), [#81](https://github.com/KucherenkoSerhiy/oncall-triage/issues/81)); M9b: weekly known-issues export + `bankops replay-dlq` ([#27](https://github.com/KucherenkoSerhiy/oncall-triage/issues/27)) |
 
 Every milestone has an offline gate CI runs and a live probe recorded in
@@ -112,9 +114,13 @@ and `docs/runbooks/kubernetes-estate.md`).
 - **Self-observability**: the CloudWatch dashboard and the five `ops`
   alarms (`infra/aws/observability.tf`) are the fastest way to see whether
   the live spine is healthy before reaching for `diagnose.yml`.
+- **C4 drift**: `task c4-drift` (`scripts/c4_drift.py`) checks that every
+  container in `docs/c4/workspace.dsl` still matches a `c4_container`
+  Terraform tag or a `nordwind.dev/c4-container` Helm label — see
+  [`docs/c4/README.md`](docs/c4/README.md) and
+  [ADR 0016](docs/adr/0016-c4-drift-as-a-merge-gate.md).
 
-(Runbooks and the C4 drift gate land in later M9 slices — see the
-roadmap.)
+(Runbooks land in a later M9 slice — see the roadmap.)
 
 ## Repository map
 
@@ -124,7 +130,7 @@ tests/             wiring + store tests (no API key needed)
 infra/             Terraform: bootstrap (once, by hand) and the CI-applied roots — see infra/README.md
 docs/              DESIGN.md · adr/ · c4/ (Structurizr DSL + generated Mermaid) · agent.md
 .github/           ci.yml · deploy.yml · c4.yml · PR template · dependabot
-Taskfile.yml       task test | lint | tf:validate | tf:lint | tf:scan | c4 | agent
+Taskfile.yml       task test | lint | tf:validate | tf:lint | tf:scan | c4 | c4-drift | agent
 ```
 
 ## Working on it
@@ -134,6 +140,7 @@ task install      # dev dependencies + pre-commit hooks
 task test         # ruff, mypy, pytest — what ci.yml runs
 task tf:validate  # fmt, init (no backend), validate every Terraform root
 task c4           # regenerate diagrams from the model (Docker)
+task c4-drift     # check the model against Terraform tags and Helm labels
 ```
 
 Conventions: trunk-based, pull requests only, squash-merge, conventional

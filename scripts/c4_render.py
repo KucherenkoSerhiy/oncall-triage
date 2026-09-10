@@ -8,6 +8,8 @@ GENERATED = Path(__file__).resolve().parent.parent / "docs" / "c4" / "generated"
 ORDER = [
     "context",
     "containers",
+    "aws-estate",
+    "azure-estate",
     "k8s-estate",
     "route-a",
     "route-b",
@@ -18,6 +20,8 @@ ORDER = [
 TITLES = {
     "context": "Level 1 — system context",
     "containers": "Level 2 — the triage brain and its inbound sources",
+    "aws-estate": "Level 2 — the AWS estate: payments, ledger, auth, CloudWatch alarms",
+    "azure-estate": "Level 2 — the Azure estate: customer-notifications, Azure Monitor, forwarder",
     "k8s-estate": "Level 2 — the Kubernetes estate: services, Kafka, bridge, relay, Alertmanager",
     "route-a": "Dynamic — an alert travels over Kafka (route A)",
     "route-b": "Dynamic — the alert about Kafka takes route B",

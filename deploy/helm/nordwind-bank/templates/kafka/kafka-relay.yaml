@@ -8,7 +8,7 @@ kind: Deployment
 metadata:
   name: kafka-relay
   labels:
-    {{- include "nordwind-bank.labels" (dict "name" "kafka-relay") | nindent 4 }}
+    {{- include "nordwind-bank.labels" (dict "name" "kafka-relay" "c4Container" "kafkaRelay") | nindent 4 }}
 spec:
   replicas: 1
   selector:
@@ -17,7 +17,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "nordwind-bank.labels" (dict "name" "kafka-relay") | nindent 8 }}
+        {{- include "nordwind-bank.labels" (dict "name" "kafka-relay" "c4Container" "kafkaRelay") | nindent 8 }}
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -96,7 +96,7 @@ kind: Service
 metadata:
   name: kafka-relay
   labels:
-    {{- include "nordwind-bank.labels" (dict "name" "kafka-relay") | nindent 4 }}
+    {{- include "nordwind-bank.labels" (dict "name" "kafka-relay" "c4Container" "kafkaRelay") | nindent 4 }}
 spec:
   selector:
     app.kubernetes.io/name: kafka-relay
@@ -110,7 +110,7 @@ kind: ServiceMonitor
 metadata:
   name: kafka-relay
   labels:
-    {{- include "nordwind-bank.labels" (dict "name" "kafka-relay") | nindent 4 }}
+    {{- include "nordwind-bank.labels" (dict "name" "kafka-relay" "c4Container" "kafkaRelay") | nindent 4 }}
     release: {{ .Values.monitoring.release }}
 spec:
   selector:
