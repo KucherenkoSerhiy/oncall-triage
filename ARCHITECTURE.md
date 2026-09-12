@@ -52,8 +52,8 @@ Design decisions that matter for review:
 - **Model: Claude Haiku 4.5 through ADK's `LiteLlm` wrapper**
   (`anthropic/claude-haiku-4-5-20251001`, the default in
   `oncall_triage/model.py`; `TRIAGE_MODEL` overrides it, and every verdict
-  stores the model id and prompt hash for audit). Phase 1 ran on
-  `gemini-3.5-flash-lite` and hit the free tier's chronic 503s and model
+  stores the model id and prompt hash for audit). Phase 1 used
+  `gemini-3.5-flash-lite`, whose free tier gave chronic 503s and model
   retirements; the switch and its reasoning are
   [ADR 0004](docs/adr/0004-claude-via-litellm.md).
 
