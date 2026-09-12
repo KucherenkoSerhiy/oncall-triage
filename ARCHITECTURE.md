@@ -1,7 +1,11 @@
 # Architecture — oncall-triage
 
-Engineer-view documentation. For the user-view intro see README.md; for
-the live demo see DEMO.md.
+Engineer-view documentation of the **agent core** (`oncall_triage/`): the
+three ADK roles, their tools and the store. The cloud system built around
+it in phase 2 (ingest, queue, worker, console, the three bank estates) is
+described in [docs/DESIGN.md](docs/DESIGN.md) and the generated C4 views in
+[docs/c4/generated/](docs/c4/generated/README.md). For the user-view intro
+see README.md; for the phase-1 local demo see DEMO.md.
 
 ## Components
 
@@ -30,7 +34,7 @@ flowchart LR
     T --> GL --> ML
     T --> CK --> KS
     T --> RM --> KS
-    Model[gemini-3.5-flash-lite] --- T
+    Model[Claude Haiku 4.5 via ADK LiteLLM] --- T
 ```
 
 Design decisions that matter for review:
@@ -45,11 +49,13 @@ Design decisions that matter for review:
   Memory Bank. Deliberate: keeps every test keyless/offline; Memory
   Bank is the documented production swap-in (the wiring for it was
   proven separately in the adk-learning Day 5 exercise).
-- **Model pinned to `gemini-3.5-flash-lite`** — `gemini-flash-latest`'s
-  free tier 503s chronically (verified across days and at 2am);
-  en route we also caught `gemini-2.5-flash-lite` being retired with a
-  404 pointing at 3.5. Model churn is real; the pin is a choice for
-  demo reliability over model capability.
+- **Model: Claude Haiku 4.5 through ADK's `LiteLlm` wrapper**
+  (`anthropic/claude-haiku-4-5-20251001`, the default in
+  `oncall_triage/model.py`; `TRIAGE_MODEL` overrides it, and every verdict
+  stores the model id and prompt hash for audit). Phase 1 ran on
+  `gemini-3.5-flash-lite` and hit the free tier's chronic 503s and model
+  retirements; the switch and its reasoning are
+  [ADR 0004](docs/adr/0004-claude-via-litellm.md).
 
 ## Sequence — new issue (research path)
 
