@@ -228,6 +228,9 @@ jobs:
       (needs.image.result == 'success' || needs.image.result == 'skipped') &&
       (needs.anthropic_key.result == 'success' || needs.anthropic_key.result == 'skipped')
     runs-on: ubuntu-latest
+    # M9d: the `plan` environment has no reviewers; declaring it scopes the OIDC
+    # subject to environment:plan instead of the bare pull_request subject (#29).
+    environment: plan
     strategy:
       fail-fast: false
       matrix:
