@@ -111,6 +111,14 @@ def teach_known_issue(
         raise SmokeError("teach-known-issue", f"HTTP {status}: {response_body!r}")
 
 
+_KNOWN_VERDICT_ATTEMPTS = 2
+
+
+def known_verdict_acceptable(verdict: dict) -> bool:
+    """A verdict on the taught known issue passes only as `ack` (#113)."""
+    return verdict.get("known") is True and verdict.get("action") == "ack"
+
+
 def wait_for_verdict(
     api_base: str,
     token: str,
@@ -161,23 +169,37 @@ def main() -> int:
             pattern="connection pool exhausted",
             explanation="Known DB pool scaling limit at peak traffic; auto-recovers, no paging.",
         )
-        known_alert_id = fire_alert(
-            api_base,
-            hmac_secret,
-            service="payments",
-            alert_name="SmokeTestKnownIssue",
-            description="connection pool exhausted while authorizing payment",
-            sample_logs=["ERROR: connection pool exhausted while authorizing payment"],
-        )
-        known_alert = wait_for_verdict(api_base, token, known_alert_id)
-        known_verdict = known_alert["verdict"]
-        if known_verdict["known"] is not True:
-            raise SmokeError(
-                "verify-known-verdict", f"expected known=true: {known_verdict['known']!r}"
+        # Matching the taught issue (known=true) is deterministic; the action
+        # is the model's call, and once in ~30 runs it said "monitor" for a
+        # known issue (#113). One retry keeps a single judgement from turning
+        # a deploy red; two misses in a row still fail.
+        for attempt in range(1, _KNOWN_VERDICT_ATTEMPTS + 1):
+            known_alert_id = fire_alert(
+                api_base,
+                hmac_secret,
+                service="payments",
+                alert_name="SmokeTestKnownIssue",
+                description="connection pool exhausted while authorizing payment",
+                sample_logs=["ERROR: connection pool exhausted while authorizing payment"],
+                run_id=probe_run_id() if attempt == 1 else f"{probe_run_id()}-retry{attempt}",
             )
-        if known_verdict["action"] != "ack":
-            raise SmokeError(
-                "verify-known-verdict", f"expected action=ack: {known_verdict['action']!r}"
+            known_alert = wait_for_verdict(api_base, token, known_alert_id)
+            known_verdict = known_alert["verdict"]
+            if known_verdict["known"] is not True:
+                raise SmokeError(
+                    "verify-known-verdict", f"expected known=true: {known_verdict['known']!r}"
+                )
+            if known_verdict_acceptable(known_verdict):
+                break
+            if attempt == _KNOWN_VERDICT_ATTEMPTS:
+                raise SmokeError(
+                    "verify-known-verdict",
+                    f"expected action=ack on {attempt} attempts, last: {known_verdict['action']!r}",
+                )
+            print(
+                f"WARN: known-issue verdict for {known_alert_id} said "
+                f"{known_verdict['action']!r} with known=true - retrying once (#113)",
+                file=sys.stderr,
             )
     except SmokeError as exc:
         print(f"FAIL[{exc.step}]: {exc}", file=sys.stderr)
