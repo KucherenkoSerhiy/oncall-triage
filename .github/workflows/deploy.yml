@@ -218,12 +218,35 @@ jobs:
           aws ssm put-parameter --name "/nordwind-triage/demo/anthropic-api-key" --type SecureString --value "$KEY" --overwrite >/dev/null
           echo "synced /nordwind-triage/demo/anthropic-api-key"
 
+  # Dependabot's pull_request runs get neither repository secrets nor the
+  # OIDC trust the plan needs (the Cloudflare provider fails with an empty
+  # token, azure/login is refused), so the plan cannot be produced there.
+  # Instead of a red check that says nothing, the plan is skipped and one
+  # comment explains that the master deploy plans + gates the change (#109).
+  dependabot_note:
+    name: dependabot - plan runs on master, not on the PR
+    needs: [preflight]
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const marker = '<!-- dependabot-plan-note -->';
+            const body = marker + '\nDependabot PRs cannot run `terraform plan` here (no repository secrets or OIDC trust reach the Dependabot context). The plan runs in the master deploy after merge, where both `apply` legs still wait for a reviewer who sees it first.';
+            const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: context.issue.number });
+            if (!comments.find(c => c.body.startsWith(marker)))
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+
   plan:
     name: plan - ${{ matrix.root }}
     needs: [preflight, ecr, image, anthropic_key]
     if: |
       always() &&
       needs.preflight.outputs.ready == 'true' &&
+      !(github.event_name == 'pull_request' && github.actor == 'dependabot[bot]') &&
       (needs.ecr.result == 'success' || needs.ecr.result == 'skipped') &&
       (needs.image.result == 'success' || needs.image.result == 'skipped') &&
       (needs.anthropic_key.result == 'success' || needs.anthropic_key.result == 'skipped')
