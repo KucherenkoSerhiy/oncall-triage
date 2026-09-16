@@ -73,7 +73,7 @@ jobs:
           version: "3.53.1"
       - name: Taskfile.yml is valid (catches YAML/templating errors in the estate-* tasks)
         run: task --list
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with:
           version: "v3.17.1"
       - name: Install kubeconform
@@ -130,7 +130,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements-dev.txt
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with:
           version: "v3.17.1"
       - name: Export Structurizr model to Mermaid

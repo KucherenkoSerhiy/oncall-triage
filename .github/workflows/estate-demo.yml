@@ -60,7 +60,7 @@ jobs:
           chmod +x kind-linux-amd64
           sudo mv kind-linux-amd64 /usr/local/bin/kind
 
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with:
           version: ${{ env.HELM_VERSION }}
 
