@@ -64,7 +64,10 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "provider_429" {
   description         = "service=customer-notifications; the SMS/e-mail provider is returning 429 Too Many Requests (provider-429 fault or a real rate limit)."
   severity            = 2
 
-  evaluation_frequency    = "PT1M"
+  # Log-query rules are billed per rule by evaluation frequency: at PT1M the
+  # two of them cost ~EUR 0.16/day and broke the USD 2 budget in their first
+  # week (#111). PT5M costs about a third and still fits the 12-minute probe.
+  evaluation_frequency    = "PT5M"
   window_duration         = "PT5M"
   auto_mitigation_enabled = true
 
@@ -100,7 +103,10 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "backlog" {
   description         = "service=customer-notifications; the notifications backlog has grown past 100 (backlog fault or a real provider slowdown)."
   severity            = 3
 
-  evaluation_frequency    = "PT1M"
+  # Log-query rules are billed per rule by evaluation frequency: at PT1M the
+  # two of them cost ~EUR 0.16/day and broke the USD 2 budget in their first
+  # week (#111). PT5M costs about a third and still fits the 12-minute probe.
+  evaluation_frequency    = "PT5M"
   window_duration         = "PT5M"
   auto_mitigation_enabled = true
 

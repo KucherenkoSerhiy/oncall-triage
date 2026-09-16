@@ -28,7 +28,7 @@ gap.
 | Azure Functions (forwarder + notifications) | executions + GB-s | yes, well under 100k/month | 0 |
 | Azure Storage account | GB + transactions | yes, required Functions companion | ~0.20 |
 | Application Insights / Log Analytics | GB ingested (5 GB free; `daily_quota_gb=0.2` caps it) | yes | 0 |
-| Azure Monitor alert rules | per rule / time series | yes, 3 rules (10 series free) | ~0.10 |
+| Azure Monitor alert rules | metric rules per time series (10 free); **log-query rules per rule by evaluation frequency** | partly - the 1 metric rule is free, the 2 log-query rules are billed: EUR 0.16-0.19/day at 1-minute evaluation in their first week (Cost Management, 2026-09-10..16, line `Alerts System Log Monitored at 1 Minute Frequency`), the one line that fired the Azure budget e-mail; moved to 5-minute evaluation in #111 | ~1.50 (was ~5 at PT1M) |
 | Route 53 hosted zone + ACM | per zone-month; ACM free | yes | 0.50 |
 | **KMS asymmetric key (DNSSEC signing)** | per key-month | **no** - `enable_dnssec` defaults `false` and no deploy passes `-var=enable_dnssec=true` yet (infra/README.md "DNSSEC") | 0 today, ~1.00 once enabled |
 | GitHub Actions minutes | per minute beyond 2,000 free/month (private) | n/a - repo is public (unlimited) | 0 |
