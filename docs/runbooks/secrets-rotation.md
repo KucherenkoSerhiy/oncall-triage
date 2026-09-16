@@ -212,7 +212,8 @@ still validate.
   (`azurerm_monitor_action_group.alerts`, via `local.forwarder_url` -
   picks up a regenerated key automatically on `infra/azure`'s **next**
   apply, since the data source re-reads at apply time); the `FORWARDER_URL`
-  **GitHub Environment secret** (`demo` environment) - a manually-copied
+  **GitHub Environment secret** (`estate` environment - no reviewers, `master`
+  only, so the Sunday schedule needs no approval, #107) - a manually-copied
   snapshot of `terraform -chdir=infra/azure output -raw forwarder_url`,
   consumed by `estate-demo.yml` and passed to `task estate-up`, which
   renders it into the Kubernetes estate's Alertmanager route-B receiver
@@ -224,7 +225,7 @@ App keys) or `az functionapp keys set --key-type functionKeys`, then:
 1. Run/wait for the next `infra/azure` apply - the action group's webhook
    picks up the new key automatically (no manual step, since the data
    source is read fresh).
-2. Manually update the `FORWARDER_URL` GitHub Environment secret with the
+2. Manually update the `FORWARDER_URL` secret of the `estate` environment with the
    new URL (`terraform -chdir=infra/azure output -raw forwarder_url` after
    step 1), since nothing does this automatically.
 
