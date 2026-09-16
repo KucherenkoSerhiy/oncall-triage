@@ -103,7 +103,7 @@ jobs:
       repository_url: ${{ steps.output.outputs.repository_url }}
       repository_name: ${{ steps.output.outputs.repository_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.10.5"
@@ -134,7 +134,7 @@ jobs:
     outputs:
       worker_image_sha: ${{ steps.tag.outputs.worker_image_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: tag
         run: echo "worker_image_sha=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
       - uses: aws-actions/configure-aws-credentials@v5
@@ -258,7 +258,7 @@ jobs:
       matrix:
         root: [aws, azure]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.10.5"
@@ -350,7 +350,7 @@ jobs:
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.sel.outputs.run == 'true'
       - uses: hashicorp/setup-terraform@v4
         if: steps.sel.outputs.run == 'true'
@@ -431,7 +431,7 @@ jobs:
     if: github.event_name != 'pull_request' && needs.apply.result == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"

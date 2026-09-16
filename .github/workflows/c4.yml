@@ -16,7 +16,7 @@ jobs:
   export:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Export Structurizr model to Mermaid
         run: |
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/docs/c4:/usr/local/structurizr" structurizr/structurizr \

@@ -17,7 +17,7 @@ jobs:
     name: python - ruff, mypy, pytest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -37,7 +37,7 @@ jobs:
       matrix:
         root: [infra/bootstrap/aws, infra/bootstrap/azure, infra/bootstrap/github, infra/aws-ecr, infra/aws, infra/azure]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.10.5"
@@ -56,7 +56,7 @@ jobs:
     name: checkov - infra policy scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: bridgecrewio/checkov-action@v12
         with:
           config_file: .checkov.yaml
@@ -67,7 +67,7 @@ jobs:
     name: helm - lint, kubeconform, trivy config, Taskfile validity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: arduino/setup-task@v3
         with:
           version: "3.53.1"
@@ -112,7 +112,7 @@ jobs:
     name: contract - Redpanda-backed Kafka contract tests (testcontainers)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -124,7 +124,7 @@ jobs:
     name: c4 - model validates, generated diagrams are current, no drift
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
