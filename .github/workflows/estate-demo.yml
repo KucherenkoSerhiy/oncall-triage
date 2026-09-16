@@ -93,7 +93,7 @@ jobs:
           -backend-config="region=${{ env.AWS_REGION }}"
 
       # forwarder.url documented at deploy/helm/values/kube-prometheus-stack.yaml
-      # and infra/README.md: the FORWARDER_URL secret of the `estate` environment (no reviewers, master only - a scheduled run has nobody to approve it, #) is set
+      # and infra/README.md: the FORWARDER_URL secret of the `estate` environment (no reviewers, master only - a scheduled run has nobody to approve it, #107) is set
       # by hand from `terraform output -raw forwarder_url` of infra/azure (a
       # sensitive output - see docs/specs/m5b) once the Azure estate is live.
       # Empty is fine: route B then targets the dummy receiver (task
