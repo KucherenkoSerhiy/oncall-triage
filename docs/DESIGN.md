@@ -496,7 +496,7 @@ line costs what it does.
 | Azure Functions (forwarder + notifications) | executions + GB-s | < 100k | 0 |
 | Azure Storage account | GB + transactions | required companion of a Function app | ~0.20 |
 | Application Insights / Log Analytics | **per GB ingested** | < 0.3 GB (5 GB free; $2.30/GB beyond — Azure's classic surprise, so verbose logging stays off) | 0 |
-| Azure Monitor alert rules | per rule / time series | 2 metric rules (10 series free) | ~0.10 |
+| Azure Monitor alert rules | metric rules per series (10 free); log-query rules per rule by evaluation frequency | 1 metric rule + 2 log-query rules at 5-minute evaluation (1-minute cost ~EUR 5/month, #111) | ~1.50 |
 | Route 53 hosted zone + ACM certificates | per zone-month; ACM public certs free | one zone for `triage.serhiykucherenko.dev` | 0.50 |
 | KMS asymmetric key (DNSSEC signing) | per key-month; not covered by the KMS free tier | one ECC_NIST_P256 key signing the zone (M9c) | ~1.00 |
 | GitHub Actions | minutes | ≈ 650 of 2,000 free/month on a private repo (unlimited if public) | 0 |

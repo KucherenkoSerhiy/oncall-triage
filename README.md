@@ -169,7 +169,7 @@ and `docs/runbooks/kubernetes-estate.md`).
 
 | Line | $/month, live today |
 |---|---|
-| Cloud (AWS + Azure), everything above | ≈ 0.80-1.00 |
+| Cloud (AWS + Azure), everything above | ≈ 2.30-2.50 (Azure log-query alert rules are the biggest line, ≈ 1.50 at 5-minute evaluation - see `docs/runbooks/cost.md`) |
 | KMS DNSSEC key, once `enable_dnssec=true` | +≈ 1.00 |
 | Anthropic API (outside the two cloud budgets) | ≈ 2.50 |
 | **Two budget guardrails** | AWS $8/month, Azure $2/month, one e-mail |
