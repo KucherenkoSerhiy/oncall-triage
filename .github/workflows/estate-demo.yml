@@ -81,7 +81,7 @@ jobs:
       # AWS credentials have to exist before that task runs - moved ahead of
       # the kind cluster step, same OIDC role the smoke job already uses.
       - name: AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
