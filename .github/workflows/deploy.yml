@@ -223,6 +223,8 @@ jobs:
   # token, azure/login is refused), so the plan cannot be produced there.
   # Instead of a red check that says nothing, the plan is skipped and one
   # comment explains that the master deploy plans + gates the change (#109).
+  # Only Dependabot's own pull_request runs have that actor: a merged bump
+  # reaches master under the merger's identity and plans normally.
   dependabot_note:
     name: dependabot - plan runs on master, not on the PR
     needs: [preflight]
@@ -246,7 +248,7 @@ jobs:
     if: |
       always() &&
       needs.preflight.outputs.ready == 'true' &&
-      !(github.event_name == 'pull_request' && github.actor == 'dependabot[bot]') &&
+      github.actor != 'dependabot[bot]' &&
       (needs.ecr.result == 'success' || needs.ecr.result == 'skipped') &&
       (needs.image.result == 'success' || needs.image.result == 'skipped') &&
       (needs.anthropic_key.result == 'success' || needs.anthropic_key.result == 'skipped')
