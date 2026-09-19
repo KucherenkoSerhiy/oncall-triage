@@ -92,6 +92,19 @@ def test_list_alerts_orders_by_received_at_desc_and_respects_limit(moto_infra):
     assert [item["alert_id"] for item in body] == ["C" * 26, "B" * 26]
 
 
+def test_list_alerts_joins_verdicts(moto_infra):
+    _put_alert(moto_infra, "A" * 26, "triaged", "2024-01-01T00:00:00Z")
+    _put_alert(moto_infra, "B" * 26, "queued", "2024-01-01T00:05:00Z")
+    _put_verdict(moto_infra, "A" * 26, action="ack")
+
+    result = handler.lambda_handler(_event("GET", "/alerts", headers=_auth_headers()), None)
+
+    assert result["statusCode"] == 200
+    by_id = {item["alert_id"]: item for item in json.loads(result["body"])}
+    assert by_id["A" * 26]["verdict"]["action"] == "ack"
+    assert by_id["B" * 26]["verdict"] is None
+
+
 def test_get_alert_includes_verdict_when_present(moto_infra):
     _put_alert(moto_infra, "A" * 26, "triaged", "2024-01-01T00:00:00Z")
     _put_verdict(moto_infra, "A" * 26, action="page")
