@@ -23,7 +23,7 @@ from __future__ import annotations
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from services.ingest.canonical import new_alert_id
 
@@ -56,7 +56,28 @@ class ConsoleStore:
             )
             items.extend(response.get("Items", []))
         items.sort(key=lambda item: item["received_at"], reverse=True)
-        return [dict(item) for item in items[:limit]]
+        page = [dict(item) for item in items[:limit]]
+        verdicts = self._verdicts_for([item["alert_id"] for item in page])
+        return [{**item, "verdict": verdicts.get(item["alert_id"])} for item in page]
+
+    def _verdicts_for(self, alert_ids: list[str]) -> dict[str, dict]:
+        """Batch-read verdicts for the listed alerts (100 keys per call; #116)."""
+        found: dict[str, dict] = {}
+        # The table resource's client (de)serializes Python values itself.
+        client = self._verdicts.meta.client
+        for start in range(0, len(alert_ids), 100):
+            keys = [{"alert_id": alert_id} for alert_id in alert_ids[start : start + 100]]
+            request: dict[str, Any] = {self._verdicts.name: {"Keys": keys}}
+            while request:
+                response = client.batch_get_item(RequestItems=request)
+                rows = cast(
+                    "list[dict[str, Any]]",
+                    response.get("Responses", {}).get(self._verdicts.name, []),
+                )
+                for item in rows:
+                    found[item["alert_id"]] = item
+                request = response.get("UnprocessedKeys") or {}
+        return found
 
     def get_alert(self, alert_id: str) -> dict | None:
         response = self._alerts.get_item(Key={"alert_id": alert_id})
