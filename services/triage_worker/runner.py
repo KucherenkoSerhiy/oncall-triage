@@ -25,6 +25,13 @@ _APP_NAME = "nordwind-triage"
 _USER_ID = "oncall"
 _VERDICT_RE = re.compile(r"```verdict\s*\n(.*?)\n```\s*$", re.DOTALL)
 _REQUIRED_VERDICT_KEYS = {"known", "severity", "action", "summary"}
+# First-person narration the reporter sometimes opens with ("I am now the
+# reporter, and I have received ... I will format ... FORMAT B. ---").
+_NARRATION_RE = re.compile(
+    r"^(?:I(?:'m| am| have|'ve| will| received)\b|As the reporter\b|Here is\b)", re.I
+)
+_RULE_RE = re.compile(r"(?:^|\s)---(?:\s|$)")
+_NARRATION_WINDOW = 600
 
 
 @dataclass
@@ -52,6 +59,26 @@ def _prompt_hash(agent: Agent) -> str:
     instructions = [str(agent.instruction)]
     instructions.extend(str(sub.instruction) for sub in agent.sub_agents if isinstance(sub, Agent))
     return hashlib.sha256("".join(instructions).encode()).hexdigest()
+
+
+def clean_report(text: str) -> str:
+    """The report as the console should show it (#126).
+
+    Drops the trailing ```verdict``` fence (already parsed into fields) and
+    any leading role narration: everything up to the first horizontal rule
+    when the text opens in the first person, or up to the first bold label
+    when there is no rule.
+    """
+    body = _VERDICT_RE.sub("", text.strip()).strip()
+    head = body[:_NARRATION_WINDOW]
+    if _NARRATION_RE.match(head):
+        rule = _RULE_RE.search(head)
+        label = head.find("**")
+        if rule is not None:
+            body = body[rule.end() :]
+        elif label > 0:
+            body = body[label:]
+    return body.strip()
 
 
 def _parse_verdict(text: str, fallback_severity: str) -> tuple[dict[str, Any], bool]:
@@ -104,7 +131,7 @@ class TriageRunner:
 
         verdict, verdict_parse_error = _parse_verdict(text, alert.get("severity", "sev3"))
         return TriageResult(
-            text=text,
+            text=clean_report(text),
             verdict=verdict,
             model=_model_string(agent),
             prompt_hash=_prompt_hash(agent),
