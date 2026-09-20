@@ -8,7 +8,7 @@
 # console loads it when no token is stored.
 set -euo pipefail
 
-python scripts/snapshot.py snapshot.json
+python -m scripts.snapshot snapshot.json
 
 bucket=$(terraform -chdir=infra/aws output -raw console_bucket)
 distribution=$(terraform -chdir=infra/aws output -raw console_distribution_id)
