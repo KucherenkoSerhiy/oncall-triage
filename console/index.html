@@ -10,16 +10,36 @@
     <header>
       <h1>Nordwind Triage Console</h1>
       <p id="status" role="status">connecting&hellip;</p>
-      <button id="change-token" type="button" class="secondary">Change token</button>
+      <button id="change-token" type="button" class="secondary">Token</button>
     </header>
 
-    <dialog id="token-dialog">
+    <dialog id="token-dialog" aria-labelledby="landing-title">
       <form id="token-form">
-        <h2>Bearer token</h2>
-        <p>Reads and writes to the console API require a bearer token. It is kept only in this browser's local storage.</p>
+        <h2 id="landing-title">Nordwind Bank alert triage</h2>
+        <p class="lede">
+          The on-call console of a portfolio project. Alerts from a simulated bank estate on AWS,
+          Azure and Kubernetes are triaged by an LLM agent into
+          <span class="badge badge-page">page</span>, <span class="badge badge-monitor">monitor</span>
+          or <span class="badge badge-ack">ack</span> verdicts, which land on this page.
+        </p>
+        <ul class="landing-links">
+          <li>
+            <a href="https://github.com/KucherenkoSerhiy/oncall-triage#readme" target="_blank" rel="noopener">Source and architecture</a>
+            <span class="muted">the README shows the system in one picture</span>
+          </li>
+          <li>
+            <a href="https://github.com/KucherenkoSerhiy/oncall-triage/actions/workflows/estate-demo.yml?query=is%3Asuccess" target="_blank" rel="noopener">Recorded runs</a>
+            <span class="muted">the weekly job that breaks the estate on purpose and lets the agent triage it</span>
+          </li>
+          <li>
+            <a href="https://github.com/KucherenkoSerhiy/oncall-triage/tree/master/docs" target="_blank" rel="noopener">Design notes and decisions</a>
+            <span class="muted">ADRs, specs, runbooks, cost</span>
+          </li>
+        </ul>
+        <p class="hint">The live view needs a bearer token. It is kept only in this browser's local storage.</p>
         <label for="token-input">Console token</label>
         <input id="token-input" name="token" type="password" autocomplete="off" required />
-        <button type="submit">Save</button>
+        <button type="submit">Open the live console</button>
       </form>
     </dialog>
 
