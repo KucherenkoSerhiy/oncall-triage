@@ -70,9 +70,9 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
 
         // bankops
         cli -> triage.ingest "fire: synthetic alert" "HTTPS + HMAC"
-        cli -> awsEstate.payments "chaos: set fault flag" "Lambda invoke"
-        cli -> azureEstate.notifications "chaos: set fault flag" "HTTPS"
-        cli -> k8sEstate.cards "chaos: patch ConfigMap" "kubectl"
+        cli -> awsEstate.payments "chaos: set fault flag" "Lambda invoke" "Chaos"
+        cli -> azureEstate.notifications "chaos: set fault flag" "HTTPS" "Chaos"
+        cli -> k8sEstate.cards "chaos: patch ConfigMap" "kubectl" "Chaos"
 
         // AWS estate
         awsEstate.payments -> awsEstate.ledgerQueue "enqueue authorisation"
@@ -84,10 +84,10 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
         awsEstate.payments -> awsEstate.faults "read fault flag"
         awsEstate.ledger -> awsEstate.faults "read fault flag"
         awsEstate.auth -> awsEstate.faults "read fault flag"
-        triage.api -> awsEstate.faults "GET/POST/DELETE chaos"
+        triage.api -> awsEstate.faults "GET/POST/DELETE chaos" "" "Chaos"
 
         // Azure estate
-        azureEstate.notifications -> triage.api "GET /chaos (bearer)" "HTTPS"
+        azureEstate.notifications -> triage.api "GET /chaos (bearer)" "HTTPS" "Chaos"
         azureEstate.notifications -> azureEstate.appInsights "custom metrics"
         azureEstate.monitor -> azureEstate.forwarder "action group webhook (common alert schema)" "HTTPS"
         azureEstate.forwarder -> triage.ingest "canonical alert" "HTTPS + HMAC"
@@ -249,8 +249,10 @@ workspace "Nordwind Bank - alert triage" "One triage brain on AWS fed by three b
     }
 
     views {
-        systemContext triage "context" "Level 1 - who and what talks to the triage system." {
+        systemContext triage "context" "Level 1 - who and what talks to the triage system: the alert path only; the chaos control plane is drawn in the level-2 estate views." {
             include *
+            // bankops chaos and the fault-flag API are a test harness, not the alert path (#120)
+            exclude "relationship.tag==Chaos"
             autolayout lr
         }
 
