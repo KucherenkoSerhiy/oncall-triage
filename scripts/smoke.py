@@ -144,6 +144,24 @@ def wait_for_verdict(
         sleep(interval)
 
 
+def check_alert_list(api_base: str, token: str, alert_id: str) -> None:
+    """The console's own call: GET /alerts must list the alert with its verdict.
+
+    GET /alerts/{id} passing is not enough - the list joins the verdicts
+    table with a different DynamoDB call (BatchGetItem) and an IAM gap
+    there took the console down while every other smoke step stayed green
+    (#124)."""
+    headers = {"Authorization": f"Bearer {token}"}
+    status, body = http("GET", f"{api_base}/alerts?limit=50", headers=headers)
+    if status != 200:
+        raise SmokeError("verify-alert-list", f"HTTP {status}: {body!r}")
+    listed = {item["alert_id"]: item for item in json.loads(body)}
+    if alert_id not in listed:
+        raise SmokeError("verify-alert-list", f"{alert_id} missing from GET /alerts")
+    if listed[alert_id].get("verdict") is None:
+        raise SmokeError("verify-alert-list", f"{alert_id} listed without its verdict")
+
+
 def main() -> int:
     api_base = os.environ.get("API_BASE", _DEFAULT_API_BASE)
     hmac_secret = os.environ["SMOKE_HMAC_SECRET"]
@@ -154,6 +172,7 @@ def main() -> int:
 
         alert_id = fire_alert(api_base, hmac_secret)
         alert = wait_for_verdict(api_base, token, alert_id)
+        check_alert_list(api_base, token, alert_id)
         verdict = alert["verdict"]
         if verdict["model"] in ("stub", "cap"):
             raise SmokeError("verify-verdict", f"expected a real model, got {verdict['model']!r}")

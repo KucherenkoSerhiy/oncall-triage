@@ -194,7 +194,7 @@ resource "aws_iam_role" "console_api" {
 data "aws_iam_policy_document" "console_api_inline" {
   statement {
     sid     = "AlertsAndVerdicts"
-    actions = ["dynamodb:Query", "dynamodb:GetItem"]
+    actions = ["dynamodb:Query", "dynamodb:GetItem", "dynamodb:BatchGetItem"] # BatchGetItem: list_alerts joins verdicts (#124)
     resources = [
       aws_dynamodb_table.alerts.arn,
       "${aws_dynamodb_table.alerts.arn}/index/*",
