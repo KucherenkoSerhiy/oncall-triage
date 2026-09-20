@@ -10,7 +10,7 @@ Three acts, one command, ~90 seconds. Uses an isolated store copy so
 the repo's seeded `known_issues.json` is never modified.
 
 ```bash
-./demo.sh
+docs/phase1/demo.sh     # from the repo root
 ```
 
 What it does (and what actually happened on the recorded live run,
