@@ -113,6 +113,12 @@ jobs:
           echo "::add-mask::$SMOKE_TOKEN"
           export SMOKE_TOKEN
           task estate-demo
+          echo "SMOKE_TOKEN=$SMOKE_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Record the console view for visitors without a token
+        # Same file the smoke job writes (#131); this run's verdicts came
+        # over Kafka and route B, the better recording to leave behind.
+        run: bash scripts/publish_snapshot.sh
 
       - name: Dump Alertmanager alerts
         if: always()

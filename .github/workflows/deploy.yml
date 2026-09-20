@@ -10,13 +10,13 @@ on:
     # Everything that ends up inside a deployed artifact: Terraform roots, the
     # Lambda zips (archive_file over services/, bank/aws/, oncall_triage/), the
     # worker image, and the probes the smoke job runs (#43).
-    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, scripts/dns_check.py, console/**, .github/workflows/deploy.yml]
+    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, scripts/dns_check.py, scripts/snapshot.py, scripts/publish_snapshot.sh, console/**, .github/workflows/deploy.yml]
   push:
     branches: [master, main]
     # Everything that ends up inside a deployed artifact: Terraform roots, the
     # Lambda zips (archive_file over services/, bank/aws/, oncall_triage/), the
     # worker image, and the probes the smoke job runs (#43).
-    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, scripts/dns_check.py, console/**, .github/workflows/deploy.yml]
+    paths: [infra/aws/**, infra/aws-ecr/**, infra/azure/**, infra/modules/**, services/**, bank/aws/**, oncall_triage/**, scripts/smoke.py, scripts/chaos_probe.py, scripts/dns_check.py, scripts/snapshot.py, scripts/publish_snapshot.sh, console/**, .github/workflows/deploy.yml]
   workflow_dispatch:
     inputs:
       root:
@@ -485,3 +485,7 @@ jobs:
             notifications-429) set -- --service customer-notifications --mode provider-429 --expect-alert Provider429 --timeout 720 ;;
           esac
           python scripts/chaos_probe.py "$@"
+      - name: Record the console view for visitors without a token
+        # demo/snapshot.json next to the console files: the last real alerts
+        # and verdicts, rendered read-only when no token is stored (#131).
+        run: bash scripts/publish_snapshot.sh
