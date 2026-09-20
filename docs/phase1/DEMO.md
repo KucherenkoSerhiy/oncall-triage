@@ -3,7 +3,7 @@
 > **Phase 1 record (local CLI, September 2026).** This document describes the
 > first, laptop-only version and its recorded run on `gemini-3.5-flash-lite`.
 > The deployed system runs Claude Haiku 4.5 via ADK LiteLLM
-> ([ADR 0004](docs/adr/0004-claude-via-litellm.md)); see README.md for the
+> ([ADR 0004](../adr/0004-claude-via-litellm.md)); see README.md for the
 > current demo script.
 
 Three acts, one command, ~90 seconds. Uses an isolated store copy so

@@ -3,7 +3,7 @@
 # Isolated store copy — the repo's known_issues.json is never touched.
 # Requires: adk on PATH (or edit ADK below), GOOGLE_API_KEY in oncall_triage/.env
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/../.."   # repo root: known_issues.json and the oncall_triage package live there
 
 ADK="${ADK:-adk}"
 DEMO_STORE="$(pwd)/demo_store.json"

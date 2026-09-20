@@ -228,5 +228,5 @@ adk web                                  # then: "check payments-service logs"
 
 This is where the project started (September 2026): the same three-role
 agent, a JSON file instead of DynamoDB, no cloud. Details, prompts, the
-three sequence diagrams and a recorded demo transcript: [`docs/agent.md`](docs/agent.md), [`ARCHITECTURE.md`](ARCHITECTURE.md),
-[`DEMO.md`](DEMO.md).
+three sequence diagrams and a recorded demo transcript: [`docs/agent.md`](docs/agent.md), [`docs/phase1/ARCHITECTURE.md`](docs/phase1/ARCHITECTURE.md),
+[`docs/phase1/DEMO.md`](docs/phase1/DEMO.md).
