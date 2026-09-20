@@ -203,8 +203,10 @@ data "aws_iam_policy_document" "console_api_inline" {
   }
 
   statement {
-    sid       = "KnownIssues"
-    actions   = ["dynamodb:Query", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
+    sid = "KnownIssues"
+    # Scan: GET /known-issues without a service filter, the console's own
+    # Known-issues call, returned 500 without it (#137).
+    actions   = ["dynamodb:Query", "dynamodb:Scan", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
     resources = [aws_dynamodb_table.known_issues.arn]
   }
 

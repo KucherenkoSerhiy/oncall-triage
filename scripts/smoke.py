@@ -111,6 +111,20 @@ def teach_known_issue(
         raise SmokeError("teach-known-issue", f"HTTP {status}: {response_body!r}")
 
 
+def check_known_issue_list(api_base: str, token: str, pattern: str) -> None:
+    """The console's other read: GET /known-issues (no service filter) must list
+    the pattern just taught. That path is a table scan, a different IAM
+    action from the query the per-service form uses; it returned 500 while
+    every other smoke step stayed green (#137)."""
+    headers = {"Authorization": f"Bearer {token}"}
+    status, body = http("GET", f"{api_base}/known-issues", headers=headers)
+    if status != 200:
+        raise SmokeError("verify-known-issue-list", f"HTTP {status}: {body!r}")
+    patterns = {item.get("pattern") for item in json.loads(body)}
+    if pattern not in patterns:
+        raise SmokeError("verify-known-issue-list", f"{pattern!r} missing from GET /known-issues")
+
+
 _KNOWN_VERDICT_ATTEMPTS = 2
 
 
@@ -188,6 +202,7 @@ def main() -> int:
             pattern="connection pool exhausted",
             explanation="Known DB pool scaling limit at peak traffic; auto-recovers, no paging.",
         )
+        check_known_issue_list(api_base, token, "connection pool exhausted")
         # Matching the taught issue (known=true) is deterministic; the action
         # is the model's call, and once in ~30 runs it said "monitor" for a
         # known issue (#113). One retry keeps a single judgement from turning
