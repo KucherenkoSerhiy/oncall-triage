@@ -3,6 +3,18 @@
 const TOKEN_KEY = "triage.token";
 const API_BASE_KEY = "triage.apiBase";
 const POLL_INTERVAL_MS = 10000;
+const ACTIONS = ["page", "monitor", "ack"];
+
+// Labels the reporter uses (current format first, then the wording older
+// verdicts were written with), mapped to the heading the console shows.
+const SECTION_LABELS = [
+  [/^error( text)?$/i, "Error"],
+  [/^researcher characteri[sz]ation$/i, "Characterization"],
+  [/^cause( category)?$/i, "Cause"],
+  [/^severity( guess)?$/i, "Severity"],
+  [/^next( diagnostic)? step$/i, "Next step"],
+  [/^recommendation$/i, "Recommendation"],
+];
 
 function resolveApiBase() {
   const params = new URLSearchParams(location.search);
@@ -53,15 +65,137 @@ function formatTime(isoString) {
   return Number.isNaN(date.getTime()) ? isoString : date.toLocaleTimeString();
 }
 
-function buildTeachForm(service) {
+// --- report text -> sections -------------------------------------------------
+
+// Same rules as services/triage_worker/runner.clean_report, so verdicts
+// written before that fix render the same way as new ones (#126, #127).
+function cleanReport(text) {
+  let body = (text || "").trim().replace(/```verdict\s*\n[\s\S]*?\n```\s*$/, "").trim();
+  const head = body.slice(0, 600);
+  if (/^(?:I(?:'m| am| have|'ve| will| received)\b|As the reporter\b|Here is\b)/i.test(head)) {
+    const rule = /(?:^|\s)---(?:\s|$)/.exec(head);
+    const label = head.indexOf("**");
+    if (rule) {
+      body = body.slice(rule.index + rule[0].length);
+    } else if (label > 0) {
+      body = body.slice(label);
+    }
+  }
+  return body.trim();
+}
+
+function headingFor(rawLabel) {
+  const label = rawLabel.trim();
+  for (const [pattern, heading] of SECTION_LABELS) {
+    if (pattern.test(label)) {
+      return heading;
+    }
+  }
+  return label;
+}
+
+function tidy(value) {
+  return value
+    .replace(/^[\s\-–—:]+/, "")
+    .replace(/\s+-\s+$/, "")
+    .replace(/\s*\n\s*-\s+/g, "\n")
+    .trim();
+}
+
+// "**Label:** value **Label:** value" (inline or one per line) -> [[heading, value], ...].
+// Returns [] when the text carries no labels, so the caller falls back to plain text.
+function parseSections(text) {
+  const marker = /\*\*([^*\n]{1,40}?):?\*\*:?/g;
+  const sections = [];
+  let match;
+  let last = null;
+  while ((match = marker.exec(text)) !== null) {
+    if (last) {
+      sections.push([last.heading, tidy(text.slice(last.end, match.index))]);
+    }
+    last = { heading: headingFor(match[1]), end: marker.lastIndex };
+  }
+  if (last) {
+    sections.push([last.heading, tidy(text.slice(last.end))]);
+  }
+  return sections.filter(([, value]) => value.length > 0);
+}
+
+// --- rendering ------------------------------------------------------------
+
+const expanded = new Set();
+let lastAlerts = [];
+
+function actionOf(alert) {
+  if (!alert.verdict) {
+    return "pending";
+  }
+  return ACTIONS.includes(alert.verdict.action) ? alert.verdict.action : "monitor";
+}
+
+function renderTiles(alerts) {
+  const counts = { page: 0, monitor: 0, ack: 0, pending: 0 };
+  for (const alert of alerts) {
+    counts[actionOf(alert)] += 1;
+  }
+  for (const [action, count] of Object.entries(counts)) {
+    document.querySelector(`[data-count="${action}"]`).textContent = String(count);
+  }
+}
+
+function renderSections(body, alert) {
+  const list = body.querySelector(".sections");
+  const plain = body.querySelector(".plain-report");
+  const meta = body.querySelector(".alert-meta");
+  list.innerHTML = "";
+  plain.hidden = true;
+  plain.textContent = "";
+
+  const metaBits = [`source ${alert.source || "?"}`, `alert ${alert.alert_id}`];
+  if (alert.verdict) {
+    metaBits.push(`model ${alert.verdict.model}`);
+    if (alert.verdict.created_at) {
+      metaBits.push(`triaged ${formatTime(alert.verdict.created_at)}`);
+    }
+    if (alert.verdict.known) {
+      metaBits.push("matched a known issue");
+    }
+  }
+  meta.textContent = metaBits.join(" · ");
+
+  if (!alert.verdict) {
+    plain.hidden = false;
+    plain.textContent = "Waiting for the triage worker.";
+    return;
+  }
+
+  const text = cleanReport(alert.verdict.text);
+  const sections = parseSections(text);
+  if (sections.length === 0) {
+    plain.hidden = false;
+    plain.textContent = text || alert.verdict.summary || "";
+    return;
+  }
+  for (const [heading, value] of sections) {
+    const dt = document.createElement("dt");
+    dt.textContent = heading;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    list.append(dt, dd);
+  }
+}
+
+function buildTeachForm(alert, onDone) {
   const template = document.getElementById("teach-form-template");
   const form = template.content.firstElementChild.cloneNode(true);
-  form.elements.service.value = service;
-  form.addEventListener("submit", onTeachSubmit);
+  form.elements.service.value = alert.service;
+  form.elements.pattern.value = alert.title || "";
+  form.querySelector(".teach-cancel").addEventListener("click", onDone);
+  form.addEventListener("submit", (event) => onTeachSubmit(event, onDone));
   return form;
 }
 
-async function onTeachSubmit(event) {
+async function onTeachSubmit(event, onDone) {
   event.preventDefault();
   const form = event.currentTarget;
   const service = form.elements.service.value.trim();
@@ -77,8 +211,7 @@ async function onTeachSubmit(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ service, pattern, explanation }),
     });
-    form.reset();
-    form.elements.service.value = service;
+    onDone();
     await refreshKnownIssues();
     setStatus(`taught known issue for ${service}`);
   } catch (err) {
@@ -86,60 +219,97 @@ async function onTeachSubmit(event) {
   }
 }
 
-function renderAlerts(alerts) {
-  const body = document.getElementById("alerts-body");
-  const empty = document.getElementById("alerts-empty");
-  body.innerHTML = "";
-  empty.hidden = alerts.length > 0;
-
-  for (const alert of alerts) {
-    const row = document.createElement("tr");
-
-    const timeCell = document.createElement("td");
-    timeCell.textContent = formatTime(alert.received_at);
-    row.appendChild(timeCell);
-
-    const severityCell = document.createElement("td");
-    const chip = document.createElement("span");
-    chip.className = `chip chip-${alert.severity}`;
-    chip.textContent = alert.severity;
-    severityCell.appendChild(chip);
-    row.appendChild(severityCell);
-
-    const serviceCell = document.createElement("td");
-    serviceCell.textContent = alert.service;
-    row.appendChild(serviceCell);
-
-    const nameCell = document.createElement("td");
-    nameCell.textContent = alert.alert_name;
-    row.appendChild(nameCell);
-
-    const statusCell = document.createElement("td");
-    statusCell.textContent = alert.status;
-    row.appendChild(statusCell);
-
-    const occurrencesCell = document.createElement("td");
-    occurrencesCell.textContent = alert.occurrences ?? 0;
-    row.appendChild(occurrencesCell);
-
-    const verdictCell = document.createElement("td");
-    if (alert.verdict) {
-      const action = document.createElement("strong");
-      action.textContent = alert.verdict.action;
-      verdictCell.appendChild(action);
-      verdictCell.appendChild(document.createElement("br"));
-      verdictCell.appendChild(document.createTextNode(alert.verdict.text));
-    } else {
-      verdictCell.textContent = "pending";
-    }
-    row.appendChild(verdictCell);
-
-    const teachCell = document.createElement("td");
-    teachCell.appendChild(buildTeachForm(alert.service));
-    row.appendChild(teachCell);
-
-    body.appendChild(row);
+function setExpanded(row, alert, isExpanded) {
+  const head = row.querySelector(".alert-head");
+  const body = row.querySelector(".alert-body");
+  head.setAttribute("aria-expanded", String(isExpanded));
+  body.hidden = !isExpanded;
+  row.classList.toggle("expanded", isExpanded);
+  if (isExpanded) {
+    expanded.add(alert.alert_id);
+  } else {
+    expanded.delete(alert.alert_id);
   }
+}
+
+function renderAlert(alert) {
+  const template = document.getElementById("alert-row-template");
+  const row = template.content.firstElementChild.cloneNode(true);
+  const action = actionOf(alert);
+  row.dataset.action = action;
+
+  row.querySelector(".col-time").textContent = formatTime(alert.received_at);
+  const chip = row.querySelector(".col-severity");
+  chip.textContent = alert.severity;
+  chip.classList.add(`chip-${alert.severity}`);
+  row.querySelector(".col-service").textContent = alert.service;
+  const name = row.querySelector(".col-name");
+  name.textContent = alert.alert_name;
+  name.title = alert.alert_name;
+  const occurrences = row.querySelector(".col-occurrences");
+  const count = alert.occurrences ?? 0;
+  occurrences.textContent = count > 1 ? `×${count}` : "";
+  const badge = row.querySelector(".col-action");
+  badge.textContent = action;
+  badge.classList.add(`badge-${action}`);
+  const summary = row.querySelector(".col-summary");
+  summary.textContent = alert.verdict
+    ? alert.verdict.summary || ""
+    : alert.status === "queued"
+      ? "queued for triage"
+      : alert.status;
+
+  const body = row.querySelector(".alert-body");
+  renderSections(body, alert);
+
+  const teach = body.querySelector(".teach");
+  const toggle = teach.querySelector(".teach-toggle");
+  toggle.addEventListener("click", () => {
+    toggle.hidden = true;
+    const form = buildTeachForm(alert, () => {
+      form.remove();
+      toggle.hidden = false;
+    });
+    teach.appendChild(form);
+    form.elements.explanation.focus();
+  });
+
+  const head = row.querySelector(".alert-head");
+  head.setAttribute("aria-label", `${action} - ${alert.service} ${alert.alert_name}: show details`);
+  head.addEventListener("click", () => {
+    setExpanded(row, alert, !expanded.has(alert.alert_id));
+  });
+  setExpanded(row, alert, expanded.has(alert.alert_id));
+  return row;
+}
+
+function renderAlerts(alerts) {
+  lastAlerts = alerts;
+  const list = document.getElementById("alerts-list");
+  const empty = document.getElementById("alerts-empty");
+  empty.hidden = alerts.length > 0;
+  renderTiles(alerts);
+
+  // Keep an open teach form alive across the poll: skip the re-render while
+  // any teach form is on screen.
+  if (list.querySelector(".teach-form")) {
+    return;
+  }
+  list.innerHTML = "";
+  for (const alert of alerts) {
+    list.appendChild(renderAlert(alert));
+  }
+}
+
+function setAllExpanded(isExpanded) {
+  for (const alert of lastAlerts) {
+    if (isExpanded) {
+      expanded.add(alert.alert_id);
+    } else {
+      expanded.delete(alert.alert_id);
+    }
+  }
+  renderAlerts(lastAlerts);
 }
 
 function renderKnownIssues(issues) {
@@ -162,14 +332,17 @@ function renderKnownIssues(issues) {
     heading.textContent = service;
     list.appendChild(heading);
 
+    const grid = document.createElement("div");
+    grid.className = "known-grid";
     for (const issue of serviceIssues) {
       const article = template.content.firstElementChild.cloneNode(true);
       article.querySelector(".pattern").textContent = issue.pattern;
       article.querySelector(".explanation").textContent = issue.explanation;
       const deleteButton = article.querySelector(".delete-known-issue");
       deleteButton.addEventListener("click", () => onDeleteKnownIssue(issue.service, issue.issue_id));
-      list.appendChild(article);
+      grid.appendChild(article);
     }
+    list.appendChild(grid);
   }
 }
 
@@ -237,6 +410,8 @@ function startPolling() {
 
 function main() {
   initTokenDialog();
+  document.getElementById("expand-all").addEventListener("click", () => setAllExpanded(true));
+  document.getElementById("collapse-all").addEventListener("click", () => setAllExpanded(false));
   if (!getToken()) {
     promptForToken();
   } else {

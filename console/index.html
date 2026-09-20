@@ -10,7 +10,7 @@
     <header>
       <h1>Nordwind Triage Console</h1>
       <p id="status" role="status">connecting&hellip;</p>
-      <button id="change-token" type="button">Change token</button>
+      <button id="change-token" type="button" class="secondary">Change token</button>
     </header>
 
     <dialog id="token-dialog">
@@ -25,31 +25,53 @@
 
     <main>
       <section aria-labelledby="alerts-heading">
-        <h2 id="alerts-heading">Alerts</h2>
-        <table id="alerts-table">
-          <thead>
-            <tr>
-              <th scope="col">Time</th>
-              <th scope="col">Severity</th>
-              <th scope="col">Service</th>
-              <th scope="col">Alert</th>
-              <th scope="col">Status</th>
-              <th scope="col">Occurrences</th>
-              <th scope="col">Verdict</th>
-              <th scope="col">Teach</th>
-            </tr>
-          </thead>
-          <tbody id="alerts-body"></tbody>
-        </table>
+        <div class="section-head">
+          <h2 id="alerts-heading">Alerts</h2>
+          <div class="tiles" id="action-tiles" aria-label="verdicts by action">
+            <div class="tile tile-page"><span class="tile-count" data-count="page">0</span><span class="tile-label">page</span></div>
+            <div class="tile tile-monitor"><span class="tile-count" data-count="monitor">0</span><span class="tile-label">monitor</span></div>
+            <div class="tile tile-ack"><span class="tile-count" data-count="ack">0</span><span class="tile-label">ack</span></div>
+            <div class="tile tile-pending"><span class="tile-count" data-count="pending">0</span><span class="tile-label">pending</span></div>
+          </div>
+          <div class="section-actions">
+            <button type="button" id="expand-all" class="secondary">Expand all</button>
+            <button type="button" id="collapse-all" class="secondary">Collapse all</button>
+          </div>
+        </div>
+        <div id="alerts-list" role="list"></div>
         <p id="alerts-empty" hidden>No alerts yet.</p>
       </section>
 
       <section aria-labelledby="known-issues-heading">
         <h2 id="known-issues-heading">Known issues</h2>
+        <p class="hint">Taught patterns are matched as a case-insensitive substring of the alert text. A match short-circuits triage: verdict <span class="badge badge-ack">ack</span>, no page.</p>
         <div id="known-issues-list"></div>
         <p id="known-issues-empty" hidden>No known issues taught yet.</p>
       </section>
     </main>
+
+    <template id="alert-row-template">
+      <article class="alert" role="listitem">
+        <button type="button" class="alert-head" aria-expanded="false">
+          <span class="chevron" aria-hidden="true"></span>
+          <span class="col-time"></span>
+          <span class="chip col-severity"></span>
+          <span class="col-service"></span>
+          <span class="col-name"></span>
+          <span class="col-occurrences" title="occurrences folded into this alert"></span>
+          <span class="badge col-action"></span>
+          <span class="col-summary"></span>
+        </button>
+        <div class="alert-body" hidden>
+          <div class="alert-meta"></div>
+          <dl class="sections"></dl>
+          <p class="plain-report" hidden></p>
+          <div class="teach">
+            <button type="button" class="teach-toggle secondary">Teach as known issue</button>
+          </div>
+        </div>
+      </article>
+    </template>
 
     <template id="teach-form-template">
       <form class="teach-form">
@@ -58,14 +80,17 @@
           <input name="service" type="text" required />
         </label>
         <label>
-          Pattern
+          Pattern <small>(substring of the alert text)</small>
           <input name="pattern" type="text" required />
         </label>
         <label>
-          Explanation
+          Explanation <small>(why it is expected; what happens by itself)</small>
           <input name="explanation" type="text" required />
         </label>
-        <button type="submit">Teach</button>
+        <div class="teach-form-actions">
+          <button type="submit">Teach</button>
+          <button type="button" class="secondary teach-cancel">Cancel</button>
+        </div>
       </form>
     </template>
 
@@ -73,7 +98,7 @@
       <article class="known-issue">
         <p class="pattern"></p>
         <p class="explanation"></p>
-        <button type="button" class="delete-known-issue">Delete</button>
+        <button type="button" class="delete-known-issue secondary">Delete</button>
       </article>
     </template>
 
