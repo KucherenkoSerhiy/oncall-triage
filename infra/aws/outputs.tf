@@ -63,3 +63,13 @@ output "dns_query_log_group" {
   description = "CloudWatch Logs group receiving Route 53 query logs for the delegated zone."
   value       = aws_cloudwatch_log_group.dns_queries.name
 }
+
+output "console_bucket" {
+  description = "S3 bucket behind the console; scripts/publish_snapshot.sh writes demo/snapshot.json into it (#131)."
+  value       = aws_s3_bucket.console.id
+}
+
+output "console_distribution_id" {
+  description = "CloudFront distribution of the console, invalidated after a snapshot publish (#131)."
+  value       = aws_cloudfront_distribution.console.id
+}

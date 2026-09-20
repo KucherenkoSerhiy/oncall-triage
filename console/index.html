@@ -13,6 +13,16 @@
       <button id="change-token" type="button" class="secondary">Token</button>
     </header>
 
+    <div id="snapshot-banner" class="banner" hidden>
+      <p>
+        <strong>Recorded run</strong> from <span class="snapshot-time"></span>, read-only.
+        Alerts and verdicts are real output of the pipeline; the live view needs a token.
+        <a class="snapshot-run" href="#" target="_blank" rel="noopener">The run that recorded it</a>
+        &middot; <a href="https://github.com/KucherenkoSerhiy/oncall-triage#readme" target="_blank" rel="noopener">Source and architecture</a>
+      </p>
+      <button type="button" id="snapshot-token" class="secondary">Have a token? Open the live view</button>
+    </div>
+
     <dialog id="token-dialog" aria-labelledby="landing-title">
       <form id="token-form">
         <h2 id="landing-title">Nordwind Bank alert triage</h2>
@@ -40,6 +50,7 @@
         <label for="token-input">Console token</label>
         <input id="token-input" name="token" type="password" autocomplete="off" required />
         <button type="submit">Open the live console</button>
+        <button type="button" id="token-cancel" class="secondary" hidden>Back to the recording</button>
       </form>
     </dialog>
 

@@ -82,6 +82,10 @@ design — decisions, cost model, security posture, milestones — is
 
 ## 5-minute demo
 
+No token? [The console](https://triage.serhiykucherenko.dev) opens on the
+last recorded run, read-only: every deploy and every weekly estate run
+refresh it with the alerts and verdicts they produced.
+
 Three unattended probes, each already recorded for real at least once - the
 run linked is that recording, not a promise:
 

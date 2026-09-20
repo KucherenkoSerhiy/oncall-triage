@@ -5,6 +5,11 @@ const API_BASE_KEY = "triage.apiBase";
 const POLL_INTERVAL_MS = 10000;
 const ACTIONS = ["page", "monitor", "ack"];
 
+// Visitors without a token see the last run the pipeline recorded (#131):
+// the smoke probe and estate-demo publish this file next to the console.
+const SNAPSHOT_URL = "demo/snapshot.json";
+let readOnly = false;
+
 // Labels the reporter uses (current format first, then the wording older
 // verdicts were written with), mapped to the heading the console shows.
 const SECTION_LABELS = [
@@ -263,6 +268,7 @@ function renderAlert(alert) {
   renderSections(body, alert);
 
   const teach = body.querySelector(".teach");
+  teach.hidden = readOnly;
   const toggle = teach.querySelector(".teach-toggle");
   toggle.addEventListener("click", () => {
     toggle.hidden = true;
@@ -339,6 +345,7 @@ function renderKnownIssues(issues) {
       article.querySelector(".pattern").textContent = issue.pattern;
       article.querySelector(".explanation").textContent = issue.explanation;
       const deleteButton = article.querySelector(".delete-known-issue");
+      deleteButton.hidden = readOnly;
       deleteButton.addEventListener("click", () => onDeleteKnownIssue(issue.service, issue.issue_id));
       grid.appendChild(article);
     }
@@ -376,10 +383,50 @@ async function refreshKnownIssues() {
   }
 }
 
+async function loadSnapshot() {
+  try {
+    const response = await fetch(SNAPSHOT_URL, { cache: "no-cache" });
+    if (!response.ok) {
+      return null;
+    }
+    return await response.json();
+  } catch (_err) {
+    return null;
+  }
+}
+
+function showSnapshot(snapshot) {
+  readOnly = true;
+  document.body.classList.add("read-only");
+  const banner = document.getElementById("snapshot-banner");
+  const recorded = new Date(snapshot.recorded_at);
+  banner.querySelector(".snapshot-time").textContent = Number.isNaN(recorded.getTime())
+    ? snapshot.recorded_at
+    : recorded.toLocaleString();
+  const run = banner.querySelector(".snapshot-run");
+  if (snapshot.run_url) {
+    run.href = snapshot.run_url;
+  } else {
+    run.hidden = true;
+  }
+  banner.hidden = false;
+  const alerts = snapshot.alerts || [];
+  renderAlerts(alerts);
+  renderKnownIssues(snapshot.known_issues || []);
+  setStatus(`recorded run - ${alerts.length} alert(s), read-only`);
+}
+
+function leaveSnapshot() {
+  readOnly = false;
+  document.body.classList.remove("read-only");
+  document.getElementById("snapshot-banner").hidden = true;
+}
+
 function promptForToken() {
   const dialog = document.getElementById("token-dialog");
   document.getElementById("token-input").value = "";
-  if (!getToken()) {
+  document.getElementById("token-cancel").hidden = !readOnly;
+  if (!getToken() && !readOnly) {
     setStatus("no token - read-only visitor");
   }
   dialog.showModal();
@@ -394,10 +441,13 @@ function initTokenDialog() {
     event.preventDefault();
     setToken(document.getElementById("token-input").value.trim());
     dialog.close();
+    leaveSnapshot();
     setStatus("connecting\u2026");
     startPolling();
   });
   document.getElementById("change-token").addEventListener("click", promptForToken);
+  document.getElementById("snapshot-token").addEventListener("click", promptForToken);
+  document.getElementById("token-cancel").addEventListener("click", () => dialog.close());
 }
 
 function startPolling() {
@@ -412,14 +462,19 @@ function startPolling() {
   ];
 }
 
-function main() {
+async function main() {
   initTokenDialog();
   document.getElementById("expand-all").addEventListener("click", () => setAllExpanded(true));
   document.getElementById("collapse-all").addEventListener("click", () => setAllExpanded(false));
-  if (!getToken()) {
-    promptForToken();
-  } else {
+  if (getToken()) {
     startPolling();
+    return;
+  }
+  const snapshot = await loadSnapshot();
+  if (snapshot) {
+    showSnapshot(snapshot);
+  } else {
+    promptForToken();
   }
 }
 

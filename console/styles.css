@@ -59,6 +59,33 @@ header h1 {
   flex: 1;
 }
 
+/* Read-only recording for visitors without a token (#131). */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1.5rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.banner p {
+  margin: 0;
+  flex: 1;
+  min-width: 16rem;
+  line-height: 1.5;
+}
+
+.banner a {
+  color: var(--accent);
+}
+
+.read-only .teach {
+  display: none;
+}
+
 main {
   padding: 1.5rem;
   display: flex;
