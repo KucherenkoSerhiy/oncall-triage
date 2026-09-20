@@ -114,6 +114,21 @@ resource "aws_s3_object" "console" {
   source       = "${local.console_dir}/${each.value}"
   etag         = filemd5("${local.console_dir}/${each.value}")
   content_type = lookup(local.content_types, split(".", each.value)[length(split(".", each.value)) - 1], "application/octet-stream")
+  # CloudFront's CachingOptimized policy honours this; without it an edge kept
+  # the old app.js for a day after a console deploy (#127).
+  cache_control = "public, max-age=300"
+}
+
+# Invalidate the distribution whenever a console file's content changes, so a
+# console deploy is visible right away rather than after the edge TTL (#127).
+resource "terraform_data" "console_invalidation" {
+  triggers_replace = [for key in sort(keys(aws_s3_object.console)) : aws_s3_object.console[key].etag]
+
+  provisioner "local-exec" {
+    command = "aws cloudfront create-invalidation --distribution-id ${aws_cloudfront_distribution.console.id} --paths '/*'"
+  }
+
+  depends_on = [aws_s3_object.console]
 }
 
 # ---------------------------------------------------------------- CloudFront

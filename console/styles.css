@@ -1,20 +1,31 @@
 :root {
   --bg: #f7f8fa;
   --surface: #ffffff;
+  --surface-2: #eef1f5;
   --text: #14181f;
   --muted: #5b6b7a;
   --border: #d8dee5;
   --accent: #0f766e;
+  --page: #dc2626;
+  --monitor: #ca8a04;
+  --ack: #16a34a;
+  --pending: #7b8794;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0e1419;
     --surface: #1c2530;
+    --surface-2: #16202a;
     --text: #f3f5f7;
     --muted: #99a6b3;
     --border: #2c3746;
     --accent: #14b8a6;
+    --page: #f87171;
+    --monitor: #facc15;
+    --ack: #4ade80;
+    --pending: #8b98a5;
   }
 }
 
@@ -53,6 +64,9 @@ main {
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 section {
@@ -62,18 +76,223 @@ section {
   padding: 1rem;
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
+section h2 {
+  margin: 0;
 }
 
-th,
-td {
-  text-align: left;
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
 }
+
+.section-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hint {
+  color: var(--muted);
+  margin: 0.5rem 0 1rem;
+  font-size: 0.9rem;
+}
+
+/* --- verdict tiles ------------------------------------------------------ */
+
+.tiles {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tile {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border-left: 4px solid var(--pending);
+}
+
+.tile-count {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tile-page {
+  border-left-color: var(--page);
+}
+
+.tile-monitor {
+  border-left-color: var(--monitor);
+}
+
+.tile-ack {
+  border-left-color: var(--ack);
+}
+
+/* --- alert rows --------------------------------------------------------- */
+
+#alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.alert {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--pending);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.alert[data-action="page"] {
+  border-left-color: var(--page);
+}
+
+.alert[data-action="monitor"] {
+  border-left-color: var(--monitor);
+}
+
+.alert[data-action="ack"] {
+  border-left-color: var(--ack);
+}
+
+.alert-head {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1rem 5.5rem 3.5rem 10rem minmax(8rem, 1fr) 2.5rem 5.5rem minmax(12rem, 2fr);
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+}
+
+.alert-head:hover,
+.alert-head:focus-visible {
+  background: var(--surface-2);
+}
+
+.alert-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.chevron {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 120ms ease;
+  margin-left: 0.15rem;
+}
+
+.expanded .chevron {
+  transform: rotate(45deg);
+}
+
+.col-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.col-service {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-name {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-occurrences {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.col-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expanded .col-summary {
+  white-space: normal;
+}
+
+.alert[data-action="pending"] .col-summary {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.alert-body {
+  padding: 0.25rem 1rem 1rem 3rem;
+  border-top: 1px solid var(--border);
+}
+
+.alert-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.sections {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.25rem;
+  margin: 0;
+  max-width: 70rem;
+}
+
+.sections dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: 0.15rem;
+}
+
+.sections dd {
+  margin: 0;
+  white-space: pre-line;
+  line-height: 1.45;
+}
+
+.plain-report {
+  margin: 0;
+  max-width: 70rem;
+  white-space: pre-line;
+  line-height: 1.45;
+}
+
+.teach {
+  margin-top: 1rem;
+}
+
+/* --- chips and badges ---------------------------------------------------- */
 
 .chip {
   display: inline-block;
@@ -82,6 +301,7 @@ td {
   font-size: 0.75rem;
   font-weight: 600;
   color: #ffffff;
+  text-align: center;
 }
 
 .chip-sev1 {
@@ -100,11 +320,47 @@ td {
   background: #2563eb;
 }
 
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+  border: 1px solid currentColor;
+}
+
+.badge-page {
+  color: var(--page);
+}
+
+.badge-monitor {
+  color: var(--monitor);
+}
+
+.badge-ack {
+  color: var(--ack);
+}
+
+.badge-pending {
+  color: var(--pending);
+  border-style: dashed;
+}
+
+/* --- teach form --------------------------------------------------------- */
+
 .teach-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 12rem;
+  display: grid;
+  grid-template-columns: 12rem minmax(16rem, 1fr) minmax(16rem, 2fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
 }
 
 .teach-form label {
@@ -112,28 +368,70 @@ td {
   flex-direction: column;
   font-size: 0.75rem;
   color: var(--muted);
+  gap: 0.2rem;
+}
+
+.teach-form small {
+  font-weight: 400;
 }
 
 .teach-form input {
-  padding: 0.25rem;
+  padding: 0.35rem;
+  font: inherit;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.teach-form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* --- known issues ------------------------------------------------------- */
+
+#known-issues-list h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.known-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 0.5rem;
 }
 
 .known-issue {
   border: 1px solid var(--border);
+  border-left: 4px solid var(--ack);
   border-radius: 6px;
-  padding: 0.5rem;
-  margin-bottom: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .known-issue .pattern {
+  font-family: var(--mono);
   font-weight: 600;
   margin: 0;
+  font-size: 0.9rem;
 }
 
 .known-issue .explanation {
   color: var(--muted);
-  margin: 0.25rem 0;
+  margin: 0;
+  flex: 1;
 }
+
+.known-issue .delete-known-issue {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+}
+
+/* --- buttons and dialog ------------------------------------------------- */
 
 button {
   background: var(--accent);
@@ -142,6 +440,18 @@ button {
   border-radius: 6px;
   padding: 0.4rem 0.75rem;
   cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+button.secondary:hover {
+  background: var(--surface-2);
 }
 
 dialog {
@@ -164,4 +474,42 @@ dialog form {
 
 dialog input {
   padding: 0.4rem;
+}
+
+@media (max-width: 900px) {
+  .tiles {
+    flex-wrap: wrap;
+  }
+
+  .alert-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.6rem;
+  }
+
+  .col-name {
+    display: none;
+  }
+
+  .col-occurrences {
+    margin-left: auto;
+  }
+
+  .col-summary {
+    flex-basis: 100%;
+    padding-left: 1.4rem;
+    white-space: normal;
+  }
+
+  .alert-body {
+    padding-left: 1rem;
+  }
+
+  .sections {
+    grid-template-columns: 1fr;
+  }
+
+  .teach-form {
+    grid-template-columns: 1fr;
+  }
 }
