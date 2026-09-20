@@ -3,9 +3,9 @@
 Engineer-view documentation of the **agent core** (`oncall_triage/`): the
 three ADK roles, their tools and the store. The cloud system built around
 it in phase 2 (ingest, queue, worker, console, the three bank estates) is
-described in [docs/DESIGN.md](docs/DESIGN.md) and the generated C4 views in
-[docs/c4/generated/](docs/c4/generated/README.md). For the user-view intro
-see README.md; for the phase-1 local demo see DEMO.md.
+described in [docs/DESIGN.md](../DESIGN.md) and the generated C4 views in
+[docs/c4/generated/](../c4/generated/README.md). For the user-view intro
+see the repository [README](../../README.md); for the phase-1 local demo see [DEMO.md](DEMO.md).
 
 ## Components
 
@@ -55,7 +55,7 @@ Design decisions that matter for review:
   stores the model id and prompt hash for audit).
   Phase 1 used `gemini-3.5-flash-lite`, whose free tier gave chronic 503s
   and model retirements; the switch and its reasoning are
-  [ADR 0004](docs/adr/0004-claude-via-litellm.md).
+  [ADR 0004](../adr/0004-claude-via-litellm.md).
 
 ## Sequence — new issue (research path)
 
