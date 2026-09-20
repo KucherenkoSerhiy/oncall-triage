@@ -30,6 +30,18 @@ TITLES = {
     "deployment-kind": "Deployment — where the Kubernetes estate runs (laptop, GitHub Actions)",
 }
 
+# Reading notes rendered under a view's title (plain Markdown).
+NOTES = {
+    "context": (
+        "How to read it: start at **Alert Triage** in the middle. Alerts flow "
+        "in from the three estates (the Kubernetes estate's route B goes "
+        "through the Azure estate's forwarder first), Alert Triage asks the "
+        "Anthropic API for a verdict, and the on-call engineer reads it. The "
+        "bankops CLI only injects synthetic alerts here; how it breaks each "
+        "estate (chaos) is drawn in the level-2 estate views, not at this level."
+    ),
+}
+
 
 def main() -> None:
     parts = [
@@ -43,7 +55,10 @@ def main() -> None:
         if not mmd.exists():
             continue
         body = mmd.read_text(encoding="utf-8").strip()
-        parts += [f"## {TITLES[key]}", "", "```mermaid", body, "```", ""]
+        parts += [f"## {TITLES[key]}", ""]
+        if key in NOTES:
+            parts += [NOTES[key], ""]
+        parts += ["```mermaid", body, "```", ""]
     (GENERATED / "README.md").write_text("\n".join(parts), encoding="utf-8", newline="\n")
     print(f"rendered {GENERATED / 'README.md'}")
 

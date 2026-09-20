@@ -4,6 +4,8 @@ Exported from [`../workspace.dsl`](../workspace.dsl) by `task c4`; do not edit b
 
 ## Level 1 — system context
 
+How to read it: start at **Alert Triage** in the middle. Alerts flow in from the three estates (the Kubernetes estate's route B goes through the Azure estate's forwarder first), Alert Triage asks the Anthropic API for a verdict, and the on-call engineer reads it. The bankops CLI only injects synthetic alerts here; how it breaks each estate (chaos) is drawn in the level-2 estate views, not at this level.
+
 ```mermaid
 graph LR
   linkStyle default fill:#ffffff
@@ -32,12 +34,7 @@ graph LR
     5-. "<div>e-mail notification</div><div style='font-size: 70%'></div>" .->1
     1-. "<div>reads verdicts, teaches known<br />issues</div><div style='font-size: 70%'>[HTTPS]</div>" .->5
     4-. "<div>fire: synthetic alert</div><div style='font-size: 70%'>[HTTPS + HMAC]</div>" .->5
-    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[Lambda invoke]</div>" .->25
-    4-. "<div>chaos: set fault flag</div><div style='font-size: 70%'>[HTTPS]</div>" .->32
-    4-. "<div>chaos: patch ConfigMap</div><div style='font-size: 70%'>[kubectl]</div>" .->37
     25-. "<div>notification</div><div style='font-size: 70%'>[SNS subscription]</div>" .->5
-    5-. "<div>GET/POST/DELETE chaos</div><div style='font-size: 70%'></div>" .->25
-    32-. "<div>GET /chaos (bearer)</div><div style='font-size: 70%'>[HTTPS]</div>" .->5
 
   end
 ```
