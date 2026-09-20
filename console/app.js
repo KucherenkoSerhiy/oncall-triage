@@ -379,6 +379,9 @@ async function refreshKnownIssues() {
 function promptForToken() {
   const dialog = document.getElementById("token-dialog");
   document.getElementById("token-input").value = "";
+  if (!getToken()) {
+    setStatus("no token - read-only visitor");
+  }
   dialog.showModal();
 }
 
@@ -391,6 +394,7 @@ function initTokenDialog() {
     event.preventDefault();
     setToken(document.getElementById("token-input").value.trim());
     dialog.close();
+    setStatus("connecting\u2026");
     startPolling();
   });
   document.getElementById("change-token").addEventListener("click", promptForToken);
