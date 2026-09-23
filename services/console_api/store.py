@@ -100,14 +100,32 @@ class ConsoleStore:
         return [dict(item) for item in response.get("Items", [])]
 
     def add_known_issue(self, service: str, pattern: str, explanation: str, taught_by: str) -> dict:
+        """Teach a pattern; teaching it again refreshes the one card instead of adding a copy.
+
+        Matching is case-insensitive on the trimmed pattern, the same way the worker
+        matches alerts. Any older duplicates of the pair are removed, so a table that
+        already holds copies (the smoke taught the same issue on every deploy, #139)
+        collapses to one card the next time it is taught."""
+        wanted = pattern.strip().casefold()
+        duplicates = [
+            existing
+            for existing in self.list_known_issues(service)
+            if str(existing.get("pattern", "")).strip().casefold() == wanted
+        ]
+        duplicates.sort(key=lambda existing: str(existing.get("created_at", "")))
+        keep = duplicates[0] if duplicates else None
+        for extra in duplicates[1:]:
+            self._known_issues.delete_item(Key={"service": service, "issue_id": extra["issue_id"]})
         item = {
             "service": service,
-            "issue_id": new_alert_id(),
+            "issue_id": keep["issue_id"] if keep else new_alert_id(),
             "pattern": pattern,
             "explanation": explanation,
             "taught_by": taught_by,
             "created_at": _now_iso(),
         }
+        if keep is not None:
+            item["first_taught_at"] = keep.get("first_taught_at") or keep.get("created_at")
         self._known_issues.put_item(Item=item)
         return item
 
