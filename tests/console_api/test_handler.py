@@ -206,6 +206,42 @@ def test_known_issues_create_list_filter_delete_round_trip(moto_infra):
     assert delete_again["statusCode"] == 404
 
 
+def test_teaching_the_same_pattern_again_keeps_one_card(moto_infra):
+    """#139: the smoke taught the same issue on every deploy; 45 copies showed up."""
+
+    def teach(explanation, pattern="Connection pool exhausted"):
+        response = handler.lambda_handler(
+            _event(
+                "POST",
+                "/known-issues",
+                headers=_auth_headers(),
+                body=json.dumps(
+                    {"service": "payments", "pattern": pattern, "explanation": explanation}
+                ),
+            ),
+            None,
+        )
+        assert response["statusCode"] == 201
+        return json.loads(response["body"])
+
+    first = teach("auto-recovers")
+    second = teach("auto-recovers within a minute", pattern="connection pool exhausted ")
+    assert second["issue_id"] == first["issue_id"]
+    assert second["explanation"] == "auto-recovers within a minute"
+    assert second["first_taught_at"] == first["created_at"]
+
+    teach("different pattern", pattern="issuer link down")
+    listed = json.loads(
+        handler.lambda_handler(_event("GET", "/known-issues", headers=_auth_headers()), None)[
+            "body"
+        ]
+    )
+    assert sorted(item["pattern"] for item in listed) == [
+        "connection pool exhausted ",
+        "issuer link down",
+    ]
+
+
 def test_known_issues_missing_field_is_400(moto_infra):
     result = handler.lambda_handler(
         _event(
