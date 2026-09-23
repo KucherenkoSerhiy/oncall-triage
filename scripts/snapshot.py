@@ -23,6 +23,11 @@ from typing import Any
 from scripts.smoke import _DEFAULT_API_BASE, SmokeError, http
 
 _ALERT_LIMIT = 50
+# Smoke probes fire on every deploy and would otherwise fill the top of the
+# recording a visitor sees; estate alerts go first, then at most this many
+# probes as proof the pipeline is exercised (#140).
+_SMOKE_PREFIX = "SmokeTest"
+_SMOKE_KEEP = 3
 
 
 def _get(api_base: str, token: str, path: str, step: str) -> Any:
@@ -44,6 +49,17 @@ def run_url_from_env(env: Mapping[str, str] | None = None) -> str:
     return f"{server}/{repository}/actions/runs/{run_id}"
 
 
+def is_smoke(alert: dict[str, Any]) -> bool:
+    return str(alert.get("alert_name", "")).startswith(_SMOKE_PREFIX)
+
+
+def order_for_visitors(alerts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Estate alerts in their original (newest-first) order, then a few smoke probes."""
+    estate = [alert for alert in alerts if not is_smoke(alert)]
+    smoke = [alert for alert in alerts if is_smoke(alert)]
+    return estate + smoke[:_SMOKE_KEEP]
+
+
 def build_snapshot(api_base: str, token: str, run_url: str = "") -> dict[str, Any]:
     alerts = _get(api_base, token, f"/alerts?limit={_ALERT_LIMIT}", "snapshot-alerts")
     known_issues = _get(api_base, token, "/known-issues", "snapshot-known-issues")
@@ -52,7 +68,7 @@ def build_snapshot(api_base: str, token: str, run_url: str = "") -> dict[str, An
     return {
         "recorded_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "run_url": run_url,
-        "alerts": alerts,
+        "alerts": order_for_visitors(alerts),
         "known_issues": known_issues,
     }
 
