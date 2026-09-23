@@ -46,6 +46,22 @@ def test_a_failed_read_is_an_error_not_an_empty_snapshot(monkeypatch):
         snapshot.build_snapshot("https://api", "t")
 
 
+def test_estate_alerts_come_first_and_smoke_probes_are_capped():
+    def alert(name, i):
+        return {"alert_id": f"{name}-{i}", "alert_name": name}
+
+    newest_first = (
+        [alert("SmokeTest", i) for i in range(3)]
+        + [alert("SmokeTestKnownIssue", i) for i in range(3)]
+        + [alert("PoolExhausted", 0), alert("KafkaConsumerLag", 0)]
+    )
+    ordered = snapshot.order_for_visitors(newest_first)
+    assert [a["alert_id"] for a in ordered[:2]] == ["PoolExhausted-0", "KafkaConsumerLag-0"]
+    assert len(ordered) == 2 + snapshot._SMOKE_KEEP
+    assert all(snapshot.is_smoke(a) for a in ordered[2:])
+    assert ordered[2]["alert_id"] == "SmokeTest-0"
+
+
 def test_run_url_only_inside_actions():
     env = {"GITHUB_RUN_ID": "7", "GITHUB_REPOSITORY": "o/r", "GITHUB_SERVER_URL": "https://gh"}
     assert snapshot.run_url_from_env(env) == "https://gh/o/r/actions/runs/7"
