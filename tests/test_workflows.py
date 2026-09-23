@@ -31,7 +31,6 @@ this test previously used.
 
 from pathlib import Path
 
-import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -120,12 +119,6 @@ def _cloud_role_jobs():
                 yield path.relative_to(REPO_ROOT).as_posix(), job_name, workflow, job
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="deploy.yml declares `environment: plan` only in the follow-up PR, merged after the "
-    "bootstrap trust policies accept the environment:plan subject (#29); until then the plan "
-    "job still presents the pull_request subject",
-)
 def test_every_cloud_role_job_declares_an_environment_or_is_a_named_exception():
     violations = []
     for rel_path, job_name, _workflow, job in _cloud_role_jobs():
@@ -160,12 +153,6 @@ def test_named_environment_exceptions_are_actually_pull_request_unreachable():
     assert not missing, f"named exceptions no longer exist in the workflows: {missing}"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="deploy.yml declares `environment: plan` only in the follow-up PR, merged after the "
-    "bootstrap trust policies accept the environment:plan subject (#29); until then the plan "
-    "job still presents the pull_request subject",
-)
 def test_jobs_reachable_from_pull_request_scope_their_oidc_subject_to_an_environment():
     violations = []
     for rel_path, job_name, workflow, job in _cloud_role_jobs():
