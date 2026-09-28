@@ -1,6 +1,6 @@
-google-adk>=2.9.2
+google-adk>=2.10.0
 litellm
 pytest>=9.1.1
-boto3>=1.43.98
+boto3>=1.43.103
 prometheus_client>=0.26.0,<1
 confluent-kafka>=2.15.1,<3
