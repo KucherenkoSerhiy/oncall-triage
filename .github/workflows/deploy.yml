@@ -107,7 +107,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.10.5"
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -137,7 +137,7 @@ jobs:
       - uses: actions/checkout@v7
       - id: tag
         run: echo "worker_image_sha=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -199,7 +199,7 @@ jobs:
       KEY_INPUT: ${{ inputs.anthropic_api_key }}
       KEY_SECRET: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -263,7 +263,7 @@ jobs:
         with:
           terraform_version: "1.10.5"
       - name: AWS credentials (OIDC) - also the state backend for both roots
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -356,7 +356,7 @@ jobs:
         if: steps.sel.outputs.run == 'true'
         with:
           terraform_version: "1.10.5"
-      - uses: aws-actions/configure-aws-credentials@v5
+      - uses: aws-actions/configure-aws-credentials@v6
         if: steps.sel.outputs.run == 'true'
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
@@ -439,7 +439,7 @@ jobs:
         with:
           terraform_version: "1.10.5"
       - name: AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
