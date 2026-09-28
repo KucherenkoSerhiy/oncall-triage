@@ -22,6 +22,12 @@ variable "plan_environment" {
   default     = "plan"
 }
 
+variable "estate_environment" {
+  description = "GitHub Actions environment the weekly estate-demo job declares (#106); its OIDC subject must be trusted too (#132)."
+  type        = string
+  default     = "estate"
+}
+
 variable "github_repository" {
   description = "owner/repo allowed to assume the deploy role via OIDC."
   type        = string
