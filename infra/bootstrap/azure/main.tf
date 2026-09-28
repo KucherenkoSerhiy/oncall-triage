@@ -32,6 +32,7 @@ locals {
     "classic-main"        = "repo:${var.github_repository}:ref:refs/heads/main"
     "classic-environment" = "repo:${var.github_repository}:environment:${var.environment}"
     "classic-plan"        = "repo:${var.github_repository}:environment:${var.plan_environment}"
+    "classic-estate"      = "repo:${var.github_repository}:environment:${var.estate_environment}"
   }
 
   immutable_subjects = {
@@ -39,6 +40,7 @@ locals {
     "immutable-main"        = "repo:${var.github_repository_immutable}:ref:refs/heads/main"
     "immutable-environment" = "repo:${var.github_repository_immutable}:environment:${var.environment}"
     "immutable-plan"        = "repo:${var.github_repository_immutable}:environment:${var.plan_environment}"
+    "immutable-estate"      = "repo:${var.github_repository_immutable}:environment:${var.estate_environment}"
   }
 }
 

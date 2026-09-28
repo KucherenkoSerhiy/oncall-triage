@@ -121,6 +121,7 @@ data "aws_iam_policy_document" "deploy_trust" {
           "repo:${repo}:ref:refs/heads/main",
           "repo:${repo}:environment:${var.environment}",
           "repo:${repo}:environment:${var.plan_environment}",
+          "repo:${repo}:environment:${var.estate_environment}",
         ]
       ])
     }
